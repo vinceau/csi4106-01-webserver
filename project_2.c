@@ -7,7 +7,7 @@ main(int argc, char **argv)
 {
 	//the name of the program is the first argument
 	if (argc != 3) {
-		printf("ERROR: Missing required arguments!\n");
+		fprintf(stderr, "ERROR: Missing required arguments!\n");
 		printf("Usage: %s <port> <folder>\n", argv[0]);
 		printf("e.g. %s 8080 /var/www\n", argv[0]);
 		return 1;
