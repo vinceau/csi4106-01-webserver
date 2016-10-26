@@ -104,16 +104,17 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	char * const PORT = argv[1];
-
-	int listener, connfd;
-	setup_server(&listener, PORT);
-
-	printf("SERVER: Listening on port %s for connections...\n", PORT);
-
+	char * const PORT = argv[1]; //port we're listening on
+	int listener; //file descriptor of listening socket
+	int connfd; //file descriptor of connection socket
 	struct sockaddr_storage their_addr; //connector's address info
 	socklen_t sin_size;
 	char s[INET6_ADDRSTRLEN]; //the connector's readable IP address
+
+	//set up the server on 
+	setup_server(&listener, PORT);
+
+	printf("SERVER: Listening on port %s for connections...\n", PORT);
 
 	while(1) {
 		sin_size = sizeof(their_addr);
