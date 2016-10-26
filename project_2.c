@@ -66,6 +66,9 @@ parse_request(char *request)
 	char path[MAX_PATH_LEN];
 	char *p = path;
 
+	FILE *file;
+	unsigned char bytes_to_send[MAX_BUF];
+
 	memset(path, 0, sizeof(path));
 	strcpy(path, ROOT);
 	p += strlen(ROOT);
@@ -94,8 +97,6 @@ parse_request(char *request)
 	}
 	printf("file: %s\n", path);
 
-	FILE *file;
-	char a;
 	file = fopen(path, "r");
 
 	if (file != NULL) { //file found
@@ -113,10 +114,10 @@ parse_request(char *request)
 				"\r\n", fsize);
 		fflush(connfile);
 
-		do {
-			a = fgetc(file);
-			fputc(a, connfile);
-		} while (a != EOF);
+		size_t bytes_read;
+		while ((bytes_read = fread(bytes_to_send, 1, MAX_BUF, file)) > 0) {
+			fwrite(bytes_to_send, 1, bytes_read, connfile);
+		}
 
 		fclose(file);
 		fclose(connfile);
