@@ -18,8 +18,9 @@
 
 #define BACKLOG 10 //how many pending connections the queue will hold
 
-// get sockaddr, IPv4 or IPv6:
-void *get_in_addr(struct sockaddr *sa)
+//get sockaddr, IPv4 or IPv6:
+void
+*get_in_addr(struct sockaddr *sa)
 {
 	if (sa->sa_family == AF_INET) {
 		return &(((struct sockaddr_in*)sa)->sin_addr);
