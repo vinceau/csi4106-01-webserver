@@ -28,6 +28,27 @@ int connfd; //file descriptor of connection socket
 char *PORT;
 char *ROOT;
 
+/*
+ * Prints an error message to the body of the response depending on <errno>
+ */
+void
+body_error(int errno)
+{
+	write(connfd, "Content-Type: text/html\r\n", 25);
+	write(connfd, "\r\n", 2);
+	switch(errno){
+		case 403:
+			write(connfd, "<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don’t have permission to access the requested URL /nopath/nofile. There is either no index document or the directory is read-protected.</p></body></html>", 238);
+			break;
+		case 404:
+			write(connfd, "<html><head><title>404 Not Found</title></head><body> <h1>404 Not Found</h1><p>The requested URL /nopath/nofile was not found on this server.</p></body></html>", 159);
+			break;
+		default:
+			fprintf(stderr, "Unrecognised error number <%d>\n", errno);
+			break;
+	}
+}
+
 void
 head_mime(char *path)
 {
@@ -123,6 +144,7 @@ parse_request(char *request)
 		fclose(connfile);
 	} else { //file not found
 		send(connfd, "HTTP/1.1 404 Not Found\r\n", 24, 0);
+		body_error(404);
 	}
 
 	printf("%s\n", request);
