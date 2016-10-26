@@ -29,21 +29,10 @@ void
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-
-int
-main(int argc, char **argv)
+//set up the server on socket <sockfd> using port <port>
+void
+setup_server(int *sockfd, char *port)
 {
-	//make sure we have the right number of arguments
-	if (argc != 3) {
-		//remember: the name of the program is the first argument
-		fprintf(stderr, "ERROR: Missing required arguments!\n");
-		printf("Usage: %s <port> <folder>\n", argv[0]);
-		printf("e.g. %s 8080 /var/www\n", argv[0]);
-		exit(1);
-	}
-
-	char * const PORT = argv[1];
-
 	//set up the structs we need
 	int status;
 	struct addrinfo hints, *p;
@@ -54,7 +43,7 @@ main(int argc, char **argv)
 	hints.ai_socktype = SOCK_STREAM; //TCP stream sockets
 	hints.ai_flags = AI_PASSIVE; //fill in my IP for me
 
-	if ((status = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
+	if ((status = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo error: %s\n",
 			gai_strerror(status));
 		exit(1);
@@ -62,24 +51,23 @@ main(int argc, char **argv)
 
 	//servinfo now points to a linked list of struct addrinfos
 	//each of which contains a struct sockaddr of some kind
-	int sockfd, connfd;
 	int yes = 1;
 	for (p = servinfo; p != NULL; p = p->ai_next) {
-		sockfd = socket(servinfo->ai_family, servinfo->ai_socktype,
+		*sockfd = socket(servinfo->ai_family, servinfo->ai_socktype,
 				servinfo->ai_protocol);
-		if (sockfd == -1) {
+		if (*sockfd == -1) {
 			perror("ERROR: socket() failed");
 			//keep going to see if we can connect to something else
 			continue; 
 		}
 
-		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+		if (setsockopt(*sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
 					sizeof(yes)) == -1) {
 			perror("ERROR: setsockopt() failed");
 			exit(1);
 		}
 
-		if (bind(sockfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
+		if (bind(*sockfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
 			perror("ERROR: bind() failed");
 			//keep going to see if we can connect to something else
 			continue;
@@ -98,10 +86,28 @@ main(int argc, char **argv)
 	}
 
 	//listen time
-	if (listen(sockfd, BACKLOG) == -1) {
+	if (listen(*sockfd, BACKLOG) == -1) {
 		perror("ERROR: listen() failed");
 		exit(1);
 	}
+}
+
+int
+main(int argc, char **argv)
+{
+	//make sure we have the right number of arguments
+	if (argc != 3) {
+		//remember: the name of the program is the first argument
+		fprintf(stderr, "ERROR: Missing required arguments!\n");
+		printf("Usage: %s <port> <folder>\n", argv[0]);
+		printf("e.g. %s 8080 /var/www\n", argv[0]);
+		exit(1);
+	}
+
+	char * const PORT = argv[1];
+
+	int sockfd, connfd;
+	setup_server(&sockfd, PORT);
 
 	printf("SERVER: Listening on port %s for connections...\n", PORT);
 
