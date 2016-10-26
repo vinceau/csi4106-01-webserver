@@ -104,12 +104,13 @@ parse_request(char *request)
 
 		struct stat st;
 		stat(path, &st);
-		int fsize = (int) st.st_size + 1;
+		int fsize = (int) st.st_size;
+		printf("file size is %d bytes\n", fsize);
 
 		FILE *connfile = fdopen(connfd, "w");
 		fprintf(connfile,
 				"Content-Length: %d\r\n"
-				"\r\n\r\n", fsize);
+				"\r\n", fsize);
 		fflush(connfile);
 
 		do {
