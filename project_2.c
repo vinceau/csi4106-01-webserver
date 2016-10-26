@@ -148,8 +148,18 @@ parse_request(char *request)
 		fclose(file);
 		fclose(connfile);
 	} else { //file not found
-		send(connfd, "HTTP/1.1 404 Not Found\r\n", 24, 0);
-		body_error(404, req);
+		//only handle GET requests for now
+		if (strncmp(req, "/go/", 4) == 0) {
+			char *site;
+			site = req + 4;
+			write(connfd, "HTTP/1.1 302 Found\r\n", 20);
+			write(connfd, "Location: http://www.", 21);
+			write(connfd, site, strlen(site));
+			write(connfd, ".com/\r\n\r\n", 9);
+		} else {
+			send(connfd, "HTTP/1.1 404 Not Found\r\n", 24, 0);
+			body_error(404, req);
+		}
 	}
 
 	printf("%s\n", request);
