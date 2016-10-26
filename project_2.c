@@ -29,7 +29,32 @@ char *PORT;
 char *ROOT;
 
 void
-parse_request(char *request) {
+head_mime(char *path)
+{
+	char *ptr;
+	int ch = '.';
+
+	ptr = strrchr(path, ch);
+	printf("%s\n", ptr);
+	if (strcmp(ptr, ".html") == 0) {
+		write(connfd, "Content-Type: text/html\r\n", 25);
+	} else if (strcmp(ptr, ".css") == 0) {
+		write(connfd, "Content-Type: text/css\r\n", 24);
+	} else if (strcmp(ptr, ".js") == 0) {
+		write(connfd, "Content-Type: text/javascript\r\n", 31);
+	} else if (strcmp(ptr, ".jpg") == 0) {
+		write(connfd, "Content-Type: image/jpeg\r\n", 26);
+	} else if (strcmp(ptr, ".png") == 0) {
+		write(connfd, "Content-Type: image/png\r\n", 25);
+	} else {
+		printf("couldn't identify file\n");
+	}
+
+}
+
+void
+parse_request(char *request)
+{
 
 	//only handle GET requests for now
 	if (strncmp(request, "GET", 3) != 0)
@@ -74,15 +99,16 @@ parse_request(char *request) {
 	file = fopen(path, "r");
 
 	if (file != NULL) { //file found
+		write(connfd, "HTTP/1.1 200 OK\r\n", 17);
+		head_mime(path);
+
 		struct stat st;
 		stat(path, &st);
 		int fsize = (int) st.st_size + 1;
 
 		FILE *connfile = fdopen(connfd, "w");
 		fprintf(connfile,
-				"HTTP/1.1 200 OK\r\n"
 				"Content-Length: %d\r\n"
-				"Content-Type: text/html\r\n"
 				"\r\n\r\n", fsize);
 		fflush(connfile);
 
