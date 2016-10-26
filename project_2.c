@@ -7,6 +7,8 @@
  * Author: Vincent Au (2016840200)
  */
 
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,9 +16,90 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 
 #define BACKLOG 10 //how many pending connections the queue will hold
+#define MAX_BUF 1024 //the max size of messages
+#define MAX_PATH_LEN 8192 //max size of the file path
+
+int connfd; //file descriptor of connection socket
+
+char *PORT;
+char *ROOT;
+
+void
+parse_request(char *request) {
+
+	//only handle GET requests for now
+	if (strncmp(request, "GET", 3) != 0)
+		return;
+
+	char *token, *string, *tofree;
+	tofree = string = strdup(request);
+
+	char path[MAX_PATH_LEN];
+	char *p = path;
+
+	memset(path, 0, sizeof(path));
+	strcpy(path, ROOT);
+	p += strlen(ROOT);
+
+	while ((token = strsep(&string, "\r\n")) != NULL) {
+		if (strncmp(token, "User-Agent: ", 12) == 0) {
+			//we're looking at the user agent now
+			if (strstr(token, "Mobile") != NULL) {
+				//we're on mobile
+				strcpy(p, "/mobile");
+				p += 7;
+			}
+		}
+	}
+
+	char *res1 = strstr(request, "/");
+	char *res2 = strstr(request, " HTTP");
+	int req_len = res2 - res1; //length of the requested page name
+	//printf("'%d'\n", req_len);
+	if (req_len > 1) {
+		strncpy(p, res1, req_len);
+		p += req_len;
+	} else {
+		strcpy(p, "/index.html");
+		p += 11;
+	}
+	printf("file: %s\n", path);
+
+	FILE *file;
+	char a;
+	file = fopen(path, "r");
+
+	if (file != NULL) { //file found
+		struct stat st;
+		stat(path, &st);
+		int fsize = (int) st.st_size + 1;
+
+		FILE *connfile = fdopen(connfd, "w");
+		fprintf(connfile,
+				"HTTP/1.1 200 OK\r\n"
+				"Content-Length: %d\r\n"
+				"Content-Type: text/html\r\n"
+				"\r\n\r\n", fsize);
+		fflush(connfile);
+
+		do {
+			a = fgetc(file);
+			fputc(a, connfile);
+		} while (a != EOF);
+
+		fclose(file);
+		fclose(connfile);
+	} else { //file not found
+		send(connfd, "HTTP/1.1 404 Not Found\r\n", 24, 0);
+	}
+
+	printf("%s\n", request);
+	free(tofree);
+}
 
 //get sockaddr, IPv4 or IPv6:
 void
@@ -104,12 +187,16 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	char * const PORT = argv[1]; //port we're listening on
+	PORT = argv[1]; //port we're listening on
+	ROOT = argv[2]; //root directory
+
 	int listener; //file descriptor of listening socket
-	int connfd; //file descriptor of connection socket
 	struct sockaddr_storage their_addr; //connector's address info
 	socklen_t sin_size;
 	char s[INET6_ADDRSTRLEN]; //the connector's readable IP address
+
+	char buf[MAX_BUF]; //buffer for messages
+	int nbytes; //the number of received bytes
 
 	//set up the server on 
 	setup_server(&listener, PORT);
@@ -133,8 +220,14 @@ main(int argc, char **argv)
 
 		if (!fork()) { //this is the child process
 			close(listener); //child doesn't need the listener
-			if (send(connfd, "HTTP/1.1 302 Moved\n", 25, 0) == -1)
-				perror("ERROR: send() failed");
+
+			if ((nbytes = recv(connfd, buf, MAX_BUF, 0)) > 0) {
+				parse_request(buf);
+				//printf("%.*s", nbytes, buf);
+			}
+
+//			if (send(connfd, "HTTP/1.1 302 Moved\n", 25, 0) == -1)
+//				perror("ERROR: send() failed");
 			close(connfd);
 			exit(0);
 		}
