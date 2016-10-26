@@ -29,9 +29,9 @@ void
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-//set up the server on socket <sockfd> using port <port>
+//set up the server on socket <listener> using port <port>
 void
-setup_server(int *sockfd, char *port)
+setup_server(int *listener, char *port)
 {
 	//set up the structs we need
 	int status;
@@ -53,21 +53,21 @@ setup_server(int *sockfd, char *port)
 	//each of which contains a struct sockaddr of some kind
 	int yes = 1;
 	for (p = servinfo; p != NULL; p = p->ai_next) {
-		*sockfd = socket(servinfo->ai_family, servinfo->ai_socktype,
+		*listener = socket(servinfo->ai_family, servinfo->ai_socktype,
 				servinfo->ai_protocol);
-		if (*sockfd == -1) {
+		if (*listener == -1) {
 			perror("ERROR: socket() failed");
 			//keep going to see if we can connect to something else
 			continue; 
 		}
 
-		if (setsockopt(*sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+		if (setsockopt(*listener, SOL_SOCKET, SO_REUSEADDR, &yes,
 					sizeof(yes)) == -1) {
 			perror("ERROR: setsockopt() failed");
 			exit(1);
 		}
 
-		if (bind(*sockfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
+		if (bind(*listener, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
 			perror("ERROR: bind() failed");
 			//keep going to see if we can connect to something else
 			continue;
@@ -86,7 +86,7 @@ setup_server(int *sockfd, char *port)
 	}
 
 	//listen time
-	if (listen(*sockfd, BACKLOG) == -1) {
+	if (listen(*listener, BACKLOG) == -1) {
 		perror("ERROR: listen() failed");
 		exit(1);
 	}
@@ -106,8 +106,8 @@ main(int argc, char **argv)
 
 	char * const PORT = argv[1];
 
-	int sockfd, connfd;
-	setup_server(&sockfd, PORT);
+	int listener, connfd;
+	setup_server(&listener, PORT);
 
 	printf("SERVER: Listening on port %s for connections...\n", PORT);
 
@@ -118,7 +118,7 @@ main(int argc, char **argv)
 	while(1) {
 		sin_size = sizeof(their_addr);
 		//accept()
-		connfd = accept(sockfd, (struct sockaddr *) &their_addr,
+		connfd = accept(listener, (struct sockaddr *) &their_addr,
 				&sin_size);
 		if (connfd == -1) {
 			perror("ERROR: accept() failed");
@@ -131,7 +131,7 @@ main(int argc, char **argv)
 		printf("SERVER: received connection from %s\n", s);
 
 		if (!fork()) { //this is the child process
-			close(sockfd); //child doesn't need the listener
+			close(listener); //child doesn't need the listener
 			if (send(connfd, "HTTP/1.1 302 Moved\n", 25, 0) == -1)
 				perror("ERROR: send() failed");
 			close(connfd);
