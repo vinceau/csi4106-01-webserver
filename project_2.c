@@ -32,7 +32,7 @@ char *ROOT;
  * Prints an error message to the body of the response depending on <errno>
  */
 void
-body_error(int errno)
+body_error(int errno, char *req)
 {
 	write(connfd, "Content-Type: text/html\r\n", 25);
 	write(connfd, "\r\n", 2);
@@ -41,7 +41,9 @@ body_error(int errno)
 			write(connfd, "<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don’t have permission to access the requested URL /nopath/nofile. There is either no index document or the directory is read-protected.</p></body></html>", 238);
 			break;
 		case 404:
-			write(connfd, "<html><head><title>404 Not Found</title></head><body> <h1>404 Not Found</h1><p>The requested URL /nopath/nofile was not found on this server.</p></body></html>", 159);
+			write(connfd, "<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL ", 96);
+			write(connfd, req, strlen(req));
+			write(connfd, " was not found on this server.</p></body></html>", 48);
 			break;
 		default:
 			fprintf(stderr, "Unrecognised error number <%d>\n", errno);
@@ -84,6 +86,7 @@ parse_request(char *request)
 	char *token, *string, *tofree;
 	tofree = string = strdup(request);
 
+	char req[MAX_PATH_LEN];
 	char path[MAX_PATH_LEN];
 	char *p = path;
 
@@ -91,6 +94,7 @@ parse_request(char *request)
 	unsigned char bytes_to_send[MAX_BUF];
 
 	memset(path, 0, sizeof(path));
+	memset(req, 0, sizeof(req));
 	strcpy(path, ROOT);
 	p += strlen(ROOT);
 
@@ -110,7 +114,8 @@ parse_request(char *request)
 	int req_len = res2 - res1; //length of the requested page name
 	//printf("'%d'\n", req_len);
 	if (req_len > 1) {
-		strncpy(p, res1, req_len);
+		strncpy(req, res1, req_len);
+		strcpy(p, req);
 		p += req_len;
 	} else {
 		strcpy(p, "/index.html");
@@ -144,7 +149,7 @@ parse_request(char *request)
 		fclose(connfile);
 	} else { //file not found
 		send(connfd, "HTTP/1.1 404 Not Found\r\n", 24, 0);
-		body_error(404);
+		body_error(404, req);
 	}
 
 	printf("%s\n", request);
