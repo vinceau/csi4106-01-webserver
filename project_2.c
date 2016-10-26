@@ -9,6 +9,25 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+
+#define BACKLOG 10 //how many pending connections the queue will hold
+
+// get sockaddr, IPv4 or IPv6:
+void *get_in_addr(struct sockaddr *sa)
+{
+	if (sa->sa_family == AF_INET) {
+		return &(((struct sockaddr_in*)sa)->sin_addr);
+	}
+
+	return &(((struct sockaddr_in6*)sa)->sin6_addr);
+}
+
 
 int
 main(int argc, char **argv)
@@ -19,11 +38,102 @@ main(int argc, char **argv)
 		fprintf(stderr, "ERROR: Missing required arguments!\n");
 		printf("Usage: %s <port> <folder>\n", argv[0]);
 		printf("e.g. %s 8080 /var/www\n", argv[0]);
-		return 1;
+		exit(1);
 	}
 
-	printf("Listening on port %s with %s as root directory...\n",
-			argv[1], argv[2]);
+	char * const PORT = argv[1];
+
+	//set up the structs we need
+	int status;
+	struct addrinfo hints, *p;
+	struct addrinfo *servinfo; //will point to the results
+
+	memset(&hints, 0, sizeof(hints)); //make sure the struct is empty
+	hints.ai_family = AF_UNSPEC; //IPv4 or IPv6 is OK (protocol agnostic)
+	hints.ai_socktype = SOCK_STREAM; //TCP stream sockets
+	hints.ai_flags = AI_PASSIVE; //fill in my IP for me
+
+	if ((status = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
+		fprintf(stderr, "getaddrinfo error: %s\n",
+			gai_strerror(status));
+		exit(1);
+	}
+
+	//servinfo now points to a linked list of struct addrinfos
+	//each of which contains a struct sockaddr of some kind
+	int sockfd, connfd;
+	int yes = 1;
+	for (p = servinfo; p != NULL; p = p->ai_next) {
+		sockfd = socket(servinfo->ai_family, servinfo->ai_socktype,
+				servinfo->ai_protocol);
+		if (sockfd == -1) {
+			perror("ERROR: socket() failed");
+			//keep going to see if we can connect to something else
+			continue; 
+		}
+
+		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes,
+					sizeof(yes)) == -1) {
+			perror("ERROR: setsockopt() failed");
+			exit(1);
+		}
+
+		if (bind(sockfd, servinfo->ai_addr, servinfo->ai_addrlen) == -1) {
+			perror("ERROR: bind() failed");
+			//keep going to see if we can connect to something else
+			continue;
+		}
+
+		//we have something, let's move on
+		break;
+	}
+
+	//free the linked list since we don't need it anymore
+	freeaddrinfo(servinfo);
+
+	if (p == NULL) {
+		fprintf(stderr, "ERROR: Failed to bind to anything!\n");
+		exit(1);
+	}
+
+	//listen time
+	if (listen(sockfd, BACKLOG) == -1) {
+		perror("ERROR: listen() failed");
+		exit(1);
+	}
+
+	printf("SERVER: Listening on port %s for connections...\n", PORT);
+
+	struct sockaddr_storage their_addr; //connector's address info
+	socklen_t sin_size;
+	char s[INET6_ADDRSTRLEN]; //the connector's readable IP address
+
+	while(1) {
+		sin_size = sizeof(their_addr);
+		//accept()
+		connfd = accept(sockfd, (struct sockaddr *) &their_addr,
+				&sin_size);
+		if (connfd == -1) {
+			perror("ERROR: accept() failed");
+			continue;
+		}
+
+		inet_ntop(their_addr.ss_family,
+				get_in_addr((struct sockaddr *)&their_addr),
+				s, sizeof s);
+		printf("SERVER: received connection from %s\n", s);
+
+		if (!fork()) { //this is the child process
+			close(sockfd); //child doesn't need the listener
+			if (send(connfd, "HTTP/1.1 302 Moved\n", 25, 0) == -1)
+				perror("ERROR: send() failed");
+			close(connfd);
+			exit(0);
+		}
+		close(connfd);  //parent doesn't need this
+
+	}
+
 	return 0;
 }
 
