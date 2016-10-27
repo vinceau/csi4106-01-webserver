@@ -54,28 +54,32 @@ body_error(int errno, char *req)
 	}
 }
 
-void
-head_mime(char *path)
+/*
+ * Returns the correct MIME type depending on file extention
+ */
+char *
+get_mime(char *path)
 {
 	char *ptr;
 	int ch = '.';
 
 	ptr = strrchr(path, ch);
 	printf("%s\n", ptr);
-	if (strcmp(ptr, ".html") == 0) {
-		write(connfd, "Content-Type: text/html\r\n", 25);
-	} else if (strcmp(ptr, ".css") == 0) {
-		write(connfd, "Content-Type: text/css\r\n", 24);
-	} else if (strcmp(ptr, ".js") == 0) {
-		write(connfd, "Content-Type: text/javascript\r\n", 31);
-	} else if (strcmp(ptr, ".jpg") == 0) {
-		write(connfd, "Content-Type: image/jpeg\r\n", 26);
-	} else if (strcmp(ptr, ".png") == 0) {
-		write(connfd, "Content-Type: image/png\r\n", 25);
-	} else {
-		printf("couldn't identify file\n");
-	}
 
+	//supported file types
+	if (strcmp(ptr, ".html") == 0)
+		return "text/html";
+	if (strcmp(ptr, ".css") == 0)
+		return "text/css";
+	if (strcmp(ptr, ".js") == 0)
+		return "text/javascript";
+	if (strcmp(ptr, ".jpg") == 0)
+		return "image/jpeg";
+	if (strcmp(ptr, ".png") == 0)
+		return "image/png";
+
+	//arbitrary data
+	return "application/octet-stream";
 }
 
 void
@@ -162,15 +166,14 @@ write_file(char *path)
 	file = fopen(path, "r");
 	connfile = fdopen(connfd, "w");
 
-	write(connfd, "HTTP/1.1 200 OK\r\n", 17);
-	head_mime(path);
-
 	int fsize = (int) st.st_size;
 	printf("file size is %d bytes\n", fsize);
 
 	fprintf(connfile,
+			"HTTP/1.1 200 OK\r\n"
+			"Content-Type: %s\r\n"
 			"Content-Length: %d\r\n"
-			"\r\n", fsize);
+			"\r\n", get_mime(path), fsize);
 	fflush(connfile);
 
 	while ((bytes_read = fread(bytes_to_send, 1, MAX_BUF, file)) > 0) {
@@ -179,7 +182,6 @@ write_file(char *path)
 
 	fclose(file);
 	fclose(connfile);
-
 }
 
 //get sockaddr, IPv4 or IPv6:
