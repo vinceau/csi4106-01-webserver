@@ -136,13 +136,17 @@ parse_request(char *request)
 	char *res2 = strstr(request, " HTTP");
 	int req_len = res2 - res1; //length of the requested page name
 	//printf("'%d'\n", req_len);
-	if (req_len > 1) {
+	if (req_len > 0) {
 		strncpy(req, res1, req_len);
 		strcpy(p, req);
 		p += req_len;
-	} else {
-		strcpy(p, "/index.html");
-		p += 11;
+
+		//add index.html if the request is a folder
+		char *lastchar = &req[req_len-1];
+		if (strncmp(lastchar, "/", 1) == 0) {
+			strcpy(p, "index.html");
+			p += 10;
+		}
 	}
 	printf("file: %s\n", path);
 
