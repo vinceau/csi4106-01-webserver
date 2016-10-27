@@ -44,27 +44,31 @@ is_alphastring(char *string);
 void
 write_error(int errno, char *req)
 {
+	FILE *connfile;
+	connfile = fdopen(connfd, "w");
+
 	switch(errno){
 		case 403:
-			write(connfd, "HTTP/1.1 403 Forbidden\r\n", 24);
-			write(connfd, "Content-Type: text/html\r\n", 25);
-			write(connfd, "\r\n", 2);
-			write(connfd, "<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don’t have permission to access the requested URL ", 135);
-			write(connfd, req, strlen(req));
-			write(connfd, ". There is either no index document or the directory is read-protected.</p></body></html>", 89);
+			fprintf(connfile,
+					"HTTP/1.1 403 Forbidden\r\n"
+					"Content-Type: text/html\r\n"
+					"\r\n"
+					"<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don't have permission to access the requested URL %s. There is either no index document or the directory is read-protected.</p></body></html>", req);
 			break;
 		case 404:
-			write(connfd, "HTTP/1.1 404 Not Found\r\n", 24);
-			write(connfd, "Content-Type: text/html\r\n", 25);
-			write(connfd, "\r\n", 2);
-			write(connfd, "<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL ", 96);
-			write(connfd, req, strlen(req));
-			write(connfd, " was not found on this server.</p></body></html>", 48);
+			fprintf(connfile,
+					"HTTP/1.1 404 Not Found\r\n"
+					"Content-Type: text/html\r\n"
+					"\r\n"
+					"<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", req);
 			break;
 		default:
 			fprintf(stderr, "Unrecognised error number <%d>\n", errno);
 			break;
 	}
+
+	fflush(connfile);
+	fclose(connfile);
 }
 
 /*
