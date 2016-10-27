@@ -32,8 +32,11 @@ char *ROOT;
 void
 write_file(char *path);
 
-int
+void
 handle_redirect(char *site);
+
+int
+is_alphastring(char *string);
 
 /*
  * Writes an error response to connfd depending on <errno>
@@ -144,8 +147,7 @@ parse_request(char *request)
 
 	if (S_ISREG(st.st_mode)) { //normal file
 		printf("is normal file\n");
-		write_file(path);
-		return;
+		return write_file(path);
 	}
 
 	//file not found
@@ -154,31 +156,39 @@ parse_request(char *request)
 	if (strncmp(req, "/go/", 4) == 0) {
 		char *site;
 		site = req + 4;
-		if (handle_redirect(site) != -1) //successfully redirected
-			return;
+		if (is_alphastring(site))
+			return handle_redirect(site);
 	}
 
 	//if we've made it down here then just return error
-	write_error(404, req);
+	return write_error(404, req);
 
 }
 
 /*
- * If <site> contains only alpha characters, set HTTP header to redirect
- * to www.<site>.com. Returns: -1 if nonalpha and 0 otherwise
+ * Returns 1 if the <string> is entirely alphabetical.
+ * Returns 0 otherwise.
  */
 int
+is_alphastring(char *string)
+{
+	for (int i = 0; i < (int)strlen(string); i++) {
+		if (!isalpha(string[i]))
+			return 0;
+	}
+	return 1;
+}
+
+/*
+ * Sets HTTP header to redirect to www.<site>.com.
+ */
+void
 handle_redirect(char *site)
 {
-	for (int i = 0; i < (int)strlen(site); i++) {
-		if (!isalpha(site[i]))
-			return -1;
-	}
 	write(connfd, "HTTP/1.1 302 Found\r\n", 20);
 	write(connfd, "Location: http://www.", 21);
 	write(connfd, site, strlen(site));
 	write(connfd, ".com/\r\n\r\n", 9);
-	return 0;
 }
 
 
