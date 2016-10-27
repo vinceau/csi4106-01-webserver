@@ -25,17 +25,14 @@
 #define MAX_BUF 1024 //the max size of messages
 #define MAX_PATH_LEN 8192 //max size of the file path
 
-int connfd; //file descriptor of connection socket
-
-char *ROOT;
-
-char *secret_key = "id=2016840200";
-
 void
 write_file(char *path);
 
 void
 handle_redirect(char *site);
+
+void
+write_response(int statusno, const char *status, const char * restrict format, ...);
 
 int
 is_alphastring(char *string);
@@ -50,10 +47,23 @@ struct request {
 	char cookie[256];
 };
 
-struct request lmao;
+
+int connfd; //file descriptor of connection socket
+char *ROOT; //root directory for all files
+char *secret_key = "id=2016840200"; //secret key for /secret
+char *PASSWORD = "id=yonsei&pw=network"; //password needed in POST
+struct request req; //information about the last request
+
+void
+unset_cookie()
+{
+	write_response(200, "OK",
+			"Set-Cookie: id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT\r\n");
+}
+
 
 int
-parse_req(char *request, struct request *req)
+parse_request(char *request, struct request *r_ptr)
 {
 	char *token, *string, *tofree;
 	int in_body = 0; //are we at the request body yet?
@@ -61,16 +71,16 @@ parse_req(char *request, struct request *req)
 
 	//only handle GET and POST requests for now
 	if (strncmp(request, "POST", 4) == 0)
-		req->method = 1;
+		r_ptr->method = 1;
 	else if (strncmp(request, "GET", 3) == 0)
-		req->method = 0;
+		r_ptr->method = 0;
 	else
-		req->method = -1;
+		r_ptr->method = -1;
 
 	//set false as default
-	req->is_mobile = 0;
-	req->has_cookie = 0;
-	req->has_body = 0;
+	r_ptr->is_mobile = 0;
+	r_ptr->has_cookie = 0;
+	r_ptr->has_body = 0;
 
 	while ((token = strsep(&string, "\r\n")) != NULL) {
 		printf("<%s>\n", token);
@@ -78,45 +88,55 @@ parse_req(char *request, struct request *req)
 			//we're looking at the user agent now
 			if (strstr(token, "Mobile") != NULL) {
 				//we're on mobile
-				req->is_mobile = 1;
+				r_ptr->is_mobile = 1;
 			}
 		}
 		else if (strncmp(token, "Cookie: ", 8) == 0) {
 			//check to see if it's the correct cookie
 			char *cookie = token + 8;
-			memset(req->cookie, 0, sizeof(req->cookie));
-			strcpy(req->cookie, cookie);
-			req->has_cookie = 1;
+			memset(r_ptr->cookie, 0, sizeof(r_ptr->cookie));
+			strcpy(r_ptr->cookie, cookie);
+			r_ptr->has_cookie = 1;
 		}
 		else if (strlen(token) == 0) {
 			in_body = 1;
 		}
 		else if (in_body == 1) {
-			memset(req->body, 0, sizeof(req->body));
-			strcpy(req->body, token);
-			req->has_body = 1;
+			memset(r_ptr->body, 0, sizeof(r_ptr->body));
+			strcpy(r_ptr->body, token);
+			r_ptr->has_body = 1;
 			break; //there should be nothing after body
 		}
 		//skip over the \n character and break when we reach the end
+		printf("strlen: %d\n", (int)strlen(string));
 		if (strlen(string) <= 2)
 			break;
 		string += 1;
 	}
 	free(tofree);
+	printf("exited main loop\n");
 
 	char *res1 = strstr(request, "/");
 	char *res2 = strstr(request, " HTTP");
-	int req_len = res2 - res1; //length of the requested page name
-	//printf("'%d'\n", req_len);
-	if (req_len > 0) {
-		memset(req->url, 0, sizeof(req->url));
-		strncpy(req->url, res1, req_len);
+	int url_len = res2 - res1; //length of the requested page name
+	//printf("'%d'\n", url_len);
+	if (url_len > 0) {
+		memset(r_ptr->url, 0, sizeof(r_ptr->url));
+		strncpy(r_ptr->url, res1, url_len);
 	}
 	return 0;
 }
 
 void
-write_response(int statusno, const char *status, const char * restrict format, ...) {
+set_cookie()
+{
+	write_response(200, "OK",
+			"Set-Cookie: %s; path=/; max-age=3600\r\n", secret_key);
+}
+
+void
+write_response(int statusno, const char *status, const char * restrict format, ...)
+{
 	va_list args;
 	FILE *connfile = fdopen(connfd, "w");
 	fprintf(connfile, "HTTP/1.1 %d %s\r\n", statusno, status);
@@ -138,13 +158,13 @@ write_error(int errno)
 			write_response(403, "Forbidden",
 					"Content-Type: text/html\r\n"
 					"\r\n"
-					"<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don't have permission to access the requested URL %s. There is either no index document or the directory is read-protected.</p></body></html>", lmao.url);
+					"<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don't have permission to access the requested URL %s. There is either no index document or the directory is read-protected.</p></body></html>", req.url);
 			break;
 		case 404:
 			write_response(404, "Not Found",
 					"Content-Type: text/html\r\n"
 					"\r\n"
-					"<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", lmao.url);
+					"<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", req.url);
 			break;
 		default:
 			fprintf(stderr, "Unrecognised error number <%d>\n", errno);
@@ -181,54 +201,49 @@ get_mime(char *path)
 }
 
 void
-parse_request(char *request)
+handle_request(char *request)
 {
 	printf("%s\n", request);
-	parse_req(request, &lmao);
+	parse_request(request, &req);
 
-	int has_key = 0;
+	printf("method: %d\n", req.method);
+	printf("is_mobile: %d\n", req.is_mobile);
+	printf("has_cookie: %d\n", req.has_cookie);
+	printf("has_body: %d\n", req.has_body);
+	printf("url: %s\n", req.url);
+	printf("body: %s\n", req.body);
+	printf("cookie: %s\n", req.cookie);
+
 	struct stat st;
 	char path[MAX_PATH_LEN];
-	char *req = lmao.url;
-	int req_len = strlen(req);
+	char *url = req.url;
+	int url_len = strlen(url);
 
-	if (lmao.method == -1)
+	if (req.method == -1)
 		return write_response(405, "Method Not Allowed", "");
 
 	//change directory to mobile if on mobile
-	char *mob = (lmao.is_mobile) ? "/mobile" : "";
+	char *mob = (req.is_mobile) ? "/mobile" : "";
 	//if we're a root folder, add index.html
-	char *fol = (req[req_len-1] == '/') ? "index.html" : "";
-	sprintf(path, "%s%s%s%s", ROOT, mob, req, fol);
+	char *fol = (url[url_len-1] == '/') ? "index.html" : "";
+	sprintf(path, "%s%s%s%s", ROOT, mob, url, fol);
 	printf("file: %s\n", path);
 
-	if (lmao.has_cookie) {
-		if (strstr(lmao.cookie, secret_key) != NULL) {
-			//the user has the secret key
-			has_key = 1;
-		}
-		printf("Cookie contents: <%s>", lmao.cookie);
-	}
-
 	//handle secret
-	if (strncmp(req, "/secret", 7) == 0) {
-		if (lmao.method == 1) { //post request
-			write(connfd, "HTTP/1.1 200 OK\r\n", 17);
-			write(connfd, "Set-Cookie: ", 12);
-			write(connfd, secret_key, strlen(secret_key));
-			write(connfd, "; max-age=3600\r\n", 41);
-			return;
+	if (strncmp(url, "/secret", 7) == 0) {
+		//return unset_cookie();
+		if (req.method == 1 && req.has_body) { //post request
+			if (strstr(req.body, PASSWORD) != NULL) {
+				printf("SET A COOKIE");
+				return set_cookie();
+			}
 		}
-		else if (!has_key) {
+		if (!req.has_cookie || strstr(req.cookie, secret_key) == NULL)
 			return write_error(403);
-		}
 	}
 
-	//force remove cookie
-	if (strncmp(req, "/remcookie", 10) == 0) {
-		write(connfd, "HTTP/1.1 200 OK\r\n", 17);
-		write(connfd, "Set-Cookie: id=; expires=Thu, 01 Jan 1970 00:00:00 GMT\r\n", 56);
-		return;
+	if (strncmp(url, "/remcookie", 10) == 0) {
+		return unset_cookie();
 	}
 
 	stat(path, &st);
@@ -240,9 +255,8 @@ parse_request(char *request)
 	//file not found
 	printf("is not normal file\n");
 	//handle go requests
-	if (strncmp(req, "/go/", 4) == 0) {
-		char *site;
-		site = req + 4;
+	if (strncmp(url, "/go/", 4) == 0) {
+		char *site = url + 4;
 		if (is_alphastring(site))
 			return handle_redirect(site);
 	}
@@ -428,7 +442,7 @@ main(int argc, char **argv)
 			close(listener); //child doesn't need the listener
 
 			if ((nbytes = recv(connfd, buf, MAX_BUF, 0)) > 0) {
-				parse_request(buf);
+				handle_request(buf);
 				//printf("%.*s", nbytes, buf);
 			}
 
