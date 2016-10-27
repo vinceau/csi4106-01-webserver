@@ -48,6 +48,8 @@ struct request {
 	char cookie[256];
 };
 
+struct request lmao;
+
 int
 parse_req(char *request, struct request *req)
 {
@@ -116,20 +118,20 @@ write_response(int statusno, const char *status, const char * restrict format, .
  * Writes an error response to connfd depending on <errno>
  */
 void
-write_error(int errno, char *req)
+write_error(int errno)
 {
 	switch(errno){
 		case 403:
 			write_response(403, "Forbidden",
 					"Content-Type: text/html\r\n"
 					"\r\n"
-					"<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don't have permission to access the requested URL %s. There is either no index document or the directory is read-protected.</p></body></html>", req);
+					"<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don't have permission to access the requested URL %s. There is either no index document or the directory is read-protected.</p></body></html>", lmao.url);
 			break;
 		case 404:
 			write_response(404, "Not Found",
 					"Content-Type: text/html\r\n"
 					"\r\n"
-					"<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", req);
+					"<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", lmao.url);
 			break;
 		default:
 			fprintf(stderr, "Unrecognised error number <%d>\n", errno);
@@ -169,7 +171,6 @@ void
 parse_request(char *request)
 {
 	printf("%s\n", request);
-	struct request lmao;
 	parse_req(request, &lmao);
 
 	int has_key = 0;
@@ -206,7 +207,7 @@ parse_request(char *request)
 			return;
 		}
 		else if (!has_key) {
-			return write_error(403, req);
+			return write_error(403);
 		}
 	}
 
@@ -234,7 +235,7 @@ parse_request(char *request)
 	}
 
 	//if we've made it down here then just return error
-	return write_error(404, req);
+	return write_error(404);
 
 }
 
