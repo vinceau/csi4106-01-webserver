@@ -43,8 +43,10 @@ is_alphastring(char *string);
 struct request {
 	int method; //0 for GET, 1 for POST
 	int is_mobile; //0 for no, 1 for yes
-	int has_cookie; //0 for no, 1 for yes
+	int has_cookie;
+	int has_body;
 	char url[2048];
+	char body[2048];
 	char cookie[256];
 };
 
@@ -54,6 +56,7 @@ int
 parse_req(char *request, struct request *req)
 {
 	char *token, *string, *tofree;
+	int in_body = 0; //are we at the request body yet?
 	tofree = string = strdup(request);
 
 	//only handle GET and POST requests for now
@@ -67,6 +70,7 @@ parse_req(char *request, struct request *req)
 	//set false as default
 	req->is_mobile = 0;
 	req->has_cookie = 0;
+	req->has_body = 0;
 
 	while ((token = strsep(&string, "\r\n")) != NULL) {
 		printf("<%s>\n", token);
@@ -83,6 +87,15 @@ parse_req(char *request, struct request *req)
 			memset(req->cookie, 0, sizeof(req->cookie));
 			strcpy(req->cookie, cookie);
 			req->has_cookie = 1;
+		}
+		else if (strlen(token) == 0) {
+			in_body = 1;
+		}
+		else if (in_body == 1) {
+			memset(req->body, 0, sizeof(req->body));
+			strcpy(req->body, token);
+			req->has_body = 1;
+			break; //there should be nothing after body
 		}
 		//skip over the \n character and break when we reach the end
 		if (strlen(string) <= 2)
