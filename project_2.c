@@ -40,6 +40,74 @@ handle_redirect(char *site);
 int
 is_alphastring(char *string);
 
+struct request {
+	int method; //0 for GET, 1 for POST
+	int is_mobile; //0 for no, 1 for yes
+	int has_cookie; //0 for no, 1 for yes
+	char url[2048];
+	char cookie[256];
+};
+
+int
+parse_req(char *request, struct request *req)
+{
+	char *token, *string, *tofree;
+	tofree = string = strdup(request);
+
+	//only handle GET and POST requests for now
+	if (strncmp(request, "POST", 4) == 0)
+		req->method = 1;
+	else if (strncmp(request, "GET", 3) == 0)
+		req->method = 0;
+	else
+		req->method = -1;
+
+	//set false as default
+	req->is_mobile = 0;
+	req->has_cookie = 0;
+
+	while ((token = strsep(&string, "\r\n")) != NULL) {
+		printf("<%s>\n", token);
+		if (strncmp(token, "User-Agent: ", 12) == 0) {
+			//we're looking at the user agent now
+			if (strstr(token, "Mobile") != NULL) {
+				//we're on mobile
+				req->is_mobile = 1;
+			}
+		}
+		else if (strncmp(token, "Cookie: ", 8) == 0) {
+			//check to see if it's the correct cookie
+			char *cookie = token + 8;
+			memset(req->cookie, 0, sizeof(req->cookie));
+			strcpy(req->cookie, cookie);
+			req->has_cookie = 1;
+		}
+		//skip over the \n character and break when we reach the end
+		if (strlen(string) <= 2)
+			break;
+		string += 1;
+	}
+	free(tofree);
+
+	char *res1 = strstr(request, "/");
+	char *res2 = strstr(request, " HTTP");
+	int req_len = res2 - res1; //length of the requested page name
+	//printf("'%d'\n", req_len);
+	if (req_len > 0) {
+		memset(req->url, 0, sizeof(req->url));
+		strncpy(req->url, res1, req_len);
+	}
+	return 0;
+}
+
+void
+write_custom_error(int errno, const char * restrict format) {
+	FILE *connfile = fdopen(connfd, "w");
+	fprintf(connfile, "HTTP/1.1 %d %s\r\n", errno, format);
+	fflush(connfile);
+	fclose(connfile);
+}
+
 /*
  * Writes an error response to connfd depending on <errno>
  */
@@ -102,77 +170,37 @@ get_mime(char *path)
 void
 parse_request(char *request)
 {
-	char *token, *string, *tofree;
-	tofree = string = strdup(request);
-
-	char req[MAX_PATH_LEN];
-	char path[MAX_PATH_LEN];
-	char *p = path;
-
-	int is_post = 0;
-	int has_key = 0;
-	
-	//only handle GET and POST requests for now
-	if (strncmp(request, "POST", 4) == 0)
-		is_post = 1;
-	else if (strncmp(request, "GET", 3) != 0)
-		return;
-	
-	memset(path, 0, sizeof(path));
-	memset(req, 0, sizeof(req));
-	strcpy(path, ROOT);
-	p += strlen(ROOT);
-
-	while ((token = strsep(&string, "\r\n")) != NULL) {
-		printf("<%s>\n", token);
-		if (strncmp(token, "User-Agent: ", 12) == 0) {
-			//we're looking at the user agent now
-			if (strstr(token, "Mobile") != NULL) {
-				//we're on mobile
-				strcpy(p, "/mobile");
-				p += 7;
-			}
-		}
-		else if (strncmp(token, "Cookie: ", 8) == 0) {
-			//check to see if it's the correct cookie
-			char *cookie = token + 8;
-			if (strstr(cookie, secret_key) != NULL) {
-				//the user has the secret key
-				has_key = 1;
-			}
-			printf("Cookie contents: <%s>", cookie);
-		}
-		//skip over the \n character and break when we reach the end
-		if (strlen(string) <= 2)
-			break;
-		string += 1;
-	}
-	free(tofree);
 	printf("%s\n", request);
+	struct request lmao;
+	parse_req(request, &lmao);
 
-	char *res1 = strstr(request, "/");
-	char *res2 = strstr(request, " HTTP");
-	int req_len = res2 - res1; //length of the requested page name
-	//printf("'%d'\n", req_len);
-	if (req_len > 0) {
-		strncpy(req, res1, req_len);
-		strcpy(p, req);
-		p += req_len;
+	int has_key = 0;
+	struct stat st;
+	char path[MAX_PATH_LEN];
+	char *req = lmao.url;
+	int req_len = strlen(req);
 
-		//add index.html if the request is a folder
-		if (req[req_len-1] == '/') {
-			strcpy(p, "index.html");
-			p += 10;
-		}
-	}
+	if (lmao.method == -1)
+		return write_custom_error(405, "Method Not Allowed");
+
+	//change directory to mobile if on mobile
+	char *mob = (lmao.is_mobile) ? "/mobile" : "";
+	//if we're a root folder, add index.html
+	char *fol = (req[req_len-1] == '/') ? "index.html" : "";
+	sprintf(path, "%s%s%s%s", ROOT, mob, req, fol);
 	printf("file: %s\n", path);
 
-	struct stat st;
-	stat(path, &st);
+	if (lmao.has_cookie) {
+		if (strstr(lmao.cookie, secret_key) != NULL) {
+			//the user has the secret key
+			has_key = 1;
+		}
+		printf("Cookie contents: <%s>", lmao.cookie);
+	}
 
 	//handle secret
 	if (strncmp(req, "/secret", 7) == 0) {
-		if (is_post) {
+		if (lmao.method == 1) { //post request
 			write(connfd, "HTTP/1.1 200 OK\r\n", 17);
 			write(connfd, "Set-Cookie: ", 12);
 			write(connfd, secret_key, strlen(secret_key));
@@ -191,7 +219,7 @@ parse_request(char *request)
 		return;
 	}
 
-
+	stat(path, &st);
 	if (S_ISREG(st.st_mode)) { //normal file
 		printf("is normal file\n");
 		return write_file(path);
