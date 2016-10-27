@@ -142,8 +142,7 @@ parse_request(char *request)
 		p += req_len;
 
 		//add index.html if the request is a folder
-		char *lastchar = &req[req_len-1];
-		if (strncmp(lastchar, "/", 1) == 0) {
+		if (req[req_len-1] == '/') {
 			strcpy(p, "index.html");
 			p += 10;
 		}
