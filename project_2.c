@@ -32,18 +32,24 @@ void
 write_file(char *path);
 
 /*
- * Prints an error message to the body of the response depending on <errno>
+ * Writes an error response to connfd depending on <errno>
  */
 void
-body_error(int errno, char *req)
+write_error(int errno, char *req)
 {
-	write(connfd, "Content-Type: text/html\r\n", 25);
-	write(connfd, "\r\n", 2);
 	switch(errno){
 		case 403:
-			write(connfd, "<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don’t have permission to access the requested URL /nopath/nofile. There is either no index document or the directory is read-protected.</p></body></html>", 238);
+			write(connfd, "HTTP/1.1 403 Forbidden\r\n", 24);
+			write(connfd, "Content-Type: text/html\r\n", 25);
+			write(connfd, "\r\n", 2);
+			write(connfd, "<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don’t have permission to access the requested URL ", 135);
+			write(connfd, req, strlen(req));
+			write(connfd, ". There is either no index document or the directory is read-protected.</p></body></html>", 89);
 			break;
 		case 404:
+			write(connfd, "HTTP/1.1 404 Not Found\r\n", 24);
+			write(connfd, "Content-Type: text/html\r\n", 25);
+			write(connfd, "\r\n", 2);
 			write(connfd, "<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL ", 96);
 			write(connfd, req, strlen(req));
 			write(connfd, " was not found on this server.</p></body></html>", 48);
@@ -144,8 +150,7 @@ parse_request(char *request)
 			write(connfd, site, strlen(site));
 			write(connfd, ".com/\r\n\r\n", 9);
 		} else {
-			send(connfd, "HTTP/1.1 404 Not Found\r\n", 24, 0);
-			body_error(404, req);
+			write_error(404, req);
 		}
 	}
 
