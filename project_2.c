@@ -24,6 +24,7 @@
 #define BACKLOG 10 //how many pending connections the queue will hold
 #define MAX_BUF 1024 //the max size of messages
 #define MAX_PATH_LEN 8192 //max size of the file path
+#define COOKIE_EXP 3600 //cookie expires in an hour
 
 void
 write_file(char *path);
@@ -50,10 +51,23 @@ struct request {
 
 int connfd; //file descriptor of connection socket
 char *ROOT; //root directory for all files
-char *secret_key = "id=2016840200"; //secret key for /secret
+char *SECRET = "id=2016840200"; //secret key for /secret
 char *PASSWORD = "id=yonsei&pw=network"; //password needed in POST
 struct request req; //information about the last request
 
+/*
+ * Sets a cookie that expires in COOKIE_EXP seconds.
+ */
+void
+set_cookie()
+{
+	write_response(200, "OK",
+			"Set-Cookie: %s; path=/; max-age=%d\r\n", SECRET, COOKIE_EXP);
+}
+
+/*
+ * Unsets the cookie we set with set_cookie().
+ */
 void
 unset_cookie()
 {
@@ -62,11 +76,16 @@ unset_cookie()
 }
 
 
+/*
+ * Reads through the request and extracts any useful information
+ * into the pointer to a request structure <r_ptr>.
+ * Returns 0 if successful.
+ */
 int
 parse_request(char *request, struct request *r_ptr)
 {
-	char *token, *string, *tofree;
 	int in_body = 0; //are we at the request body yet?
+	char *token, *string, *tofree;
 	tofree = string = strdup(request);
 
 	//only handle GET and POST requests for now
@@ -82,23 +101,23 @@ parse_request(char *request, struct request *r_ptr)
 	r_ptr->has_cookie = 0;
 	r_ptr->has_body = 0;
 
+	//loop through the request line by line (saved to token)
 	while ((token = strsep(&string, "\r\n")) != NULL) {
-		printf("<%s>\n", token);
 		if (strncmp(token, "User-Agent: ", 12) == 0) {
 			//we're looking at the user agent now
-			if (strstr(token, "Mobile") != NULL) {
-				//we're on mobile
+			if (strstr(token, "Mobile") != NULL) { //we're on mobile
 				r_ptr->is_mobile = 1;
 			}
 		}
 		else if (strncmp(token, "Cookie: ", 8) == 0) {
-			//check to see if it's the correct cookie
+			//save the cookie to the pointer
 			char *cookie = token + 8;
 			memset(r_ptr->cookie, 0, sizeof(r_ptr->cookie));
 			strcpy(r_ptr->cookie, cookie);
 			r_ptr->has_cookie = 1;
 		}
 		else if (strlen(token) == 0) {
+			//we've reached the end of the header, expecting body now
 			in_body = 1;
 		}
 		else if (in_body == 1) {
@@ -108,18 +127,15 @@ parse_request(char *request, struct request *r_ptr)
 			break; //there should be nothing after body
 		}
 		//skip over the \n character and break when we reach the end
-		printf("strlen: %d\n", (int)strlen(string));
 		if (strlen(string) <= 2)
 			break;
 		string += 1;
 	}
 	free(tofree);
-	printf("exited main loop\n");
 
 	char *res1 = strstr(request, "/");
 	char *res2 = strstr(request, " HTTP");
 	int url_len = res2 - res1; //length of the requested page name
-	//printf("'%d'\n", url_len);
 	if (url_len > 0) {
 		memset(r_ptr->url, 0, sizeof(r_ptr->url));
 		strncpy(r_ptr->url, res1, url_len);
@@ -127,19 +143,18 @@ parse_request(char *request, struct request *r_ptr)
 	return 0;
 }
 
-void
-set_cookie()
-{
-	write_response(200, "OK",
-			"Set-Cookie: %s; path=/; max-age=3600\r\n", secret_key);
-}
-
+/*
+ * Writes a HTTP response to connfd connection socket, appending any string
+ * as additional header/body contents.
+ * statusno: the HTTP status number
+ * status: the HTTP status
+ */
 void
 write_response(int statusno, const char *status, const char * restrict format, ...)
 {
-	va_list args;
 	FILE *connfile = fdopen(connfd, "w");
 	fprintf(connfile, "HTTP/1.1 %d %s\r\n", statusno, status);
+	va_list args;
 	va_start(args, format);
 	vfprintf(connfile, format, args);
 	va_end(args);
@@ -148,7 +163,7 @@ write_response(int statusno, const char *status, const char * restrict format, .
 }
 
 /*
- * Writes an error response to connfd depending on <errno>
+ * Writes predefined error response to connfd depending on <errno>
  */
 void
 write_error(int errno)
@@ -173,7 +188,8 @@ write_error(int errno)
 }
 
 /*
- * Returns the correct MIME type depending on file extention
+ * Returns the correct MIME type depending on file extention.
+ * Returns "application/octet-stream" if file extension is unknown.
  */
 char *
 get_mime(char *path)
@@ -200,6 +216,10 @@ get_mime(char *path)
 	return "application/octet-stream";
 }
 
+/*
+ * Reads the request and executes the appropriate action depending on
+ * information retrieved from parse_request().
+ */
 void
 handle_request(char *request)
 {
@@ -234,11 +254,10 @@ handle_request(char *request)
 		//return unset_cookie();
 		if (req.method == 1 && req.has_body) { //post request
 			if (strstr(req.body, PASSWORD) != NULL) {
-				printf("SET A COOKIE");
 				return set_cookie();
 			}
 		}
-		if (!req.has_cookie || strstr(req.cookie, secret_key) == NULL)
+		if (!req.has_cookie || strstr(req.cookie, SECRET) == NULL)
 			return write_error(403);
 	}
 
@@ -248,12 +267,10 @@ handle_request(char *request)
 
 	stat(path, &st);
 	if (S_ISREG(st.st_mode)) { //normal file
-		printf("is normal file\n");
 		return write_file(path);
 	}
 
 	//file not found
-	printf("is not normal file\n");
 	//handle go requests
 	if (strncmp(url, "/go/", 4) == 0) {
 		char *site = url + 4;
@@ -263,7 +280,6 @@ handle_request(char *request)
 
 	//if we've made it down here then just return error
 	return write_error(404);
-
 }
 
 /*
@@ -287,10 +303,15 @@ void
 handle_redirect(char *site)
 {
 	write_response(302, "Found",
-			"Location: http://www.%s.com/\r\n\r\n", site);
+			"Location: http://www.%s.com/\r\n", site);
 }
 
 
+/*
+ * Writes the file at <path> to the connfd socket.
+ * Warning! This function does not check for file errors but assumes
+ * the file already exists. Check for existence before calling write_file()!
+ */
 void
 write_file(char *path)
 {
@@ -321,18 +342,24 @@ write_file(char *path)
 	fclose(connfile);
 }
 
-//get sockaddr, IPv4 or IPv6:
+/*
+ * Get socket address irrespective of IPv4 or IPv6
+ * Shamelessly taken from:
+ * http://www.beej.us/guide/bgnet/output/html/singlepage/bgnet.html
+ * Credits to Brian "Beej Jorgensen" Hall
+ */
 void
 *get_in_addr(struct sockaddr *sa)
 {
 	if (sa->sa_family == AF_INET) {
 		return &(((struct sockaddr_in*)sa)->sin_addr);
 	}
-
 	return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-//set up the server on socket <listener> using port <port>
+/*
+ * Set up the server on socket <listener> using port <port>
+ */
 void
 setup_server(int *listener, char *port)
 {
@@ -403,7 +430,7 @@ main(int argc, char **argv)
 		//remember: the name of the program is the first argument
 		fprintf(stderr, "ERROR: Missing required arguments!\n");
 		printf("Usage: %s <port> <folder>\n", argv[0]);
-		printf("e.g. %s 8080 /var/www\n", argv[0]);
+		printf("e.g. %s 8080 website\n", argv[0]);
 		exit(1);
 	}
 
@@ -436,25 +463,22 @@ main(int argc, char **argv)
 		inet_ntop(their_addr.ss_family,
 				get_in_addr((struct sockaddr *)&their_addr),
 				s, sizeof s);
+
 		printf("SERVER: received connection from %s\n", s);
 
 		if (!fork()) { //this is the child process
 			close(listener); //child doesn't need the listener
 
 			if ((nbytes = recv(connfd, buf, MAX_BUF, 0)) > 0) {
+				//we received something a request!
 				handle_request(buf);
-				//printf("%.*s", nbytes, buf);
 			}
 
-//			if (send(connfd, "HTTP/1.1 302 Moved\n", 25, 0) == -1)
-//				perror("ERROR: send() failed");
 			close(connfd);
 			exit(0);
 		}
 		close(connfd);  //parent doesn't need this
-
 	}
-
 	return 0;
 }
 
