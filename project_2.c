@@ -142,6 +142,10 @@ parse_request(char *request)
 			}
 			printf("Cookie contents: <%s>", cookie);
 		}
+		//skip over the \n character and break when we reach the end
+		if (strlen(string) <= 2)
+			break;
+		string += 1;
 	}
 	free(tofree);
 	printf("%s\n", request);
