@@ -18,6 +18,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <stdarg.h>
 
 
 #define BACKLOG 10 //how many pending connections the queue will hold
@@ -101,9 +102,13 @@ parse_req(char *request, struct request *req)
 }
 
 void
-write_custom_error(int errno, const char * restrict format) {
+write_response(int statusno, const char *status, const char * restrict format, ...) {
+	va_list args;
 	FILE *connfile = fdopen(connfd, "w");
-	fprintf(connfile, "HTTP/1.1 %d %s\r\n", errno, format);
+	fprintf(connfile, "HTTP/1.1 %d %s\r\n", statusno, status);
+	va_start(args, format);
+	vfprintf(connfile, format, args);
+	va_end(args);
 	fflush(connfile);
 	fclose(connfile);
 }
@@ -114,19 +119,15 @@ write_custom_error(int errno, const char * restrict format) {
 void
 write_error(int errno, char *req)
 {
-	FILE *connfile = fdopen(connfd, "w");
-
 	switch(errno){
 		case 403:
-			fprintf(connfile,
-					"HTTP/1.1 403 Forbidden\r\n"
+			write_response(403, "Forbidden",
 					"Content-Type: text/html\r\n"
 					"\r\n"
 					"<html><head><title>Access Forbidden</title></head><body><h1>403 Forbidden</h1><p>You don't have permission to access the requested URL %s. There is either no index document or the directory is read-protected.</p></body></html>", req);
 			break;
 		case 404:
-			fprintf(connfile,
-					"HTTP/1.1 404 Not Found\r\n"
+			write_response(404, "Not Found",
 					"Content-Type: text/html\r\n"
 					"\r\n"
 					"<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1><p>The requested URL %s was not found on this server.</p></body></html>", req);
@@ -135,8 +136,6 @@ write_error(int errno, char *req)
 			fprintf(stderr, "Unrecognised error number <%d>\n", errno);
 			break;
 	}
-	fflush(connfile);
-	fclose(connfile);
 }
 
 /*
@@ -181,7 +180,7 @@ parse_request(char *request)
 	int req_len = strlen(req);
 
 	if (lmao.method == -1)
-		return write_custom_error(405, "Method Not Allowed");
+		return write_response(405, "Method Not Allowed", "");
 
 	//change directory to mobile if on mobile
 	char *mob = (lmao.is_mobile) ? "/mobile" : "";
@@ -260,10 +259,8 @@ is_alphastring(char *string)
 void
 handle_redirect(char *site)
 {
-	write(connfd, "HTTP/1.1 302 Found\r\n", 20);
-	write(connfd, "Location: http://www.", 21);
-	write(connfd, site, strlen(site));
-	write(connfd, ".com/\r\n\r\n", 9);
+	write_response(302, "Found",
+			"Location: http://www.%s.com/\r\n\r\n", site);
 }
 
 
