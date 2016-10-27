@@ -44,8 +44,7 @@ is_alphastring(char *string);
 void
 write_error(int errno, char *req)
 {
-	FILE *connfile;
-	connfile = fdopen(connfd, "w");
+	FILE *connfile = fdopen(connfd, "w");
 
 	switch(errno){
 		case 403:
@@ -66,7 +65,6 @@ write_error(int errno, char *req)
 			fprintf(stderr, "Unrecognised error number <%d>\n", errno);
 			break;
 	}
-
 	fflush(connfile);
 	fclose(connfile);
 }
@@ -77,22 +75,22 @@ write_error(int errno, char *req)
 char *
 get_mime(char *path)
 {
-	char *ptr;
-	int ch = '.';
-
-	ptr = strrchr(path, ch);
-	printf("%s\n", ptr);
+	//grab the file extension
+	char *fext = strrchr(path, '.');
+	if (fext != NULL) {
+		fext += 1; //ignore the '.'
+	}
 
 	//supported file types
-	if (strcmp(ptr, ".html") == 0)
+	if (strcmp(fext, "html") == 0)
 		return "text/html";
-	if (strcmp(ptr, ".css") == 0)
+	if (strcmp(fext, "css") == 0)
 		return "text/css";
-	if (strcmp(ptr, ".js") == 0)
+	if (strcmp(fext, "js") == 0)
 		return "text/javascript";
-	if (strcmp(ptr, ".jpg") == 0)
+	if (strcmp(fext, "jpg") == 0)
 		return "image/jpeg";
-	if (strcmp(ptr, ".png") == 0)
+	if (strcmp(fext, "png") == 0)
 		return "image/png";
 
 	//arbitrary data
