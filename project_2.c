@@ -20,23 +20,10 @@
 #include <ctype.h>
 #include <stdarg.h>
 
-
 #define BACKLOG 10 //how many pending connections the queue will hold
 #define MAX_BUF 1024 //the max size of messages
 #define MAX_PATH_LEN 8192 //max size of the file path
 #define COOKIE_EXP 3600 //cookie expires in an hour
-
-void
-write_file(char *path);
-
-void
-handle_redirect(char *site);
-
-void
-write_response(int statusno, const char *status, const char * restrict format, ...);
-
-int
-is_alphastring(char *string);
 
 struct request {
 	int method; //0 for GET, 1 for POST
@@ -48,6 +35,41 @@ struct request {
 	char cookie[256];
 };
 
+void
+set_cookie();
+
+void
+unset_cookie();
+
+int
+parse_request(char *request, struct request *r_ptr);
+
+void
+write_response(int statusno, const char *status, const char * restrict format, ...);
+
+void
+write_error(int errno);
+
+char *
+get_mime(char *path);
+
+void
+handle_request(char *request);
+
+int
+is_alphastring(char *string);
+
+void
+handle_redirect(char *site);
+
+void
+write_file(char *path);
+
+void
+*get_in_addr(struct sockaddr *sa);
+
+void
+setup_server(int *listener, char *port);
 
 int connfd; //file descriptor of connection socket
 char *ROOT; //root directory for all files
@@ -74,7 +96,6 @@ unset_cookie()
 	write_response(200, "OK",
 			"Set-Cookie: id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT\r\n");
 }
-
 
 /*
  * Reads through the request and extracts any useful information
@@ -223,6 +244,11 @@ get_mime(char *path)
 void
 handle_request(char *request)
 {
+	struct stat st;
+	char path[MAX_PATH_LEN];
+	char *url = req.url;
+	int url_len = strlen(url);
+
 	printf("%s\n", request);
 	parse_request(request, &req);
 
@@ -234,17 +260,12 @@ handle_request(char *request)
 	printf("body: %s\n", req.body);
 	printf("cookie: %s\n", req.cookie);
 
-	struct stat st;
-	char path[MAX_PATH_LEN];
-	char *url = req.url;
-	int url_len = strlen(url);
-
 	if (req.method == -1)
 		return write_response(405, "Method Not Allowed", "");
 
-	//change directory to mobile if on mobile
+	//change root directory to mobile if on mobile
 	char *mob = (req.is_mobile) ? "/mobile" : "";
-	//if we're a root folder, add index.html
+	//if we're at a folder, add index.html
 	char *fol = (url[url_len-1] == '/') ? "index.html" : "";
 	sprintf(path, "%s%s%s%s", ROOT, mob, url, fol);
 	printf("file: %s\n", path);
@@ -283,8 +304,7 @@ handle_request(char *request)
 }
 
 /*
- * Returns 1 if the <string> is entirely alphabetical.
- * Returns 0 otherwise.
+ * Returns 1 if <string> is entirely alphabetical and 0 otherwise.
  */
 int
 is_alphastring(char *string)
