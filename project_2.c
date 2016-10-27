@@ -28,6 +28,9 @@ int connfd; //file descriptor of connection socket
 char *PORT;
 char *ROOT;
 
+void
+write_file(char *path);
+
 /*
  * Prints an error message to the body of the response depending on <errno>
  */
@@ -90,9 +93,6 @@ parse_request(char *request)
 	char path[MAX_PATH_LEN];
 	char *p = path;
 
-	FILE *file;
-	unsigned char bytes_to_send[MAX_BUF];
-
 	memset(path, 0, sizeof(path));
 	memset(req, 0, sizeof(req));
 	strcpy(path, ROOT);
@@ -123,31 +123,14 @@ parse_request(char *request)
 	}
 	printf("file: %s\n", path);
 
-	file = fopen(path, "r");
+	struct stat st;
+	stat(path, &st);
 
-	if (file != NULL) { //file found
-		write(connfd, "HTTP/1.1 200 OK\r\n", 17);
-		head_mime(path);
-
-		struct stat st;
-		stat(path, &st);
-		int fsize = (int) st.st_size;
-		printf("file size is %d bytes\n", fsize);
-
-		FILE *connfile = fdopen(connfd, "w");
-		fprintf(connfile,
-				"Content-Length: %d\r\n"
-				"\r\n", fsize);
-		fflush(connfile);
-
-		size_t bytes_read;
-		while ((bytes_read = fread(bytes_to_send, 1, MAX_BUF, file)) > 0) {
-			fwrite(bytes_to_send, 1, bytes_read, connfile);
-		}
-
-		fclose(file);
-		fclose(connfile);
+	if (S_ISREG(st.st_mode)) { //normal file
+		printf("is normal file\n");
+		write_file(path);
 	} else { //file not found
+		printf("is not normal file\n");
 		//only handle GET requests for now
 		if (strncmp(req, "/go/", 4) == 0) {
 			char *site;
@@ -164,6 +147,39 @@ parse_request(char *request)
 
 	printf("%s\n", request);
 	free(tofree);
+}
+
+
+void
+write_file(char *path)
+{
+	FILE *file, *connfile;
+	unsigned char bytes_to_send[MAX_BUF];
+	size_t bytes_read;
+	struct stat st;
+	stat(path, &st);
+
+	file = fopen(path, "r");
+	connfile = fdopen(connfd, "w");
+
+	write(connfd, "HTTP/1.1 200 OK\r\n", 17);
+	head_mime(path);
+
+	int fsize = (int) st.st_size;
+	printf("file size is %d bytes\n", fsize);
+
+	fprintf(connfile,
+			"Content-Length: %d\r\n"
+			"\r\n", fsize);
+	fflush(connfile);
+
+	while ((bytes_read = fread(bytes_to_send, 1, MAX_BUF, file)) > 0) {
+		fwrite(bytes_to_send, 1, bytes_read, connfile);
+	}
+
+	fclose(file);
+	fclose(connfile);
+
 }
 
 //get sockaddr, IPv4 or IPv6:
