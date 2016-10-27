@@ -17,6 +17,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <ctype.h>
 
 
 #define BACKLOG 10 //how many pending connections the queue will hold
@@ -30,6 +31,9 @@ char *ROOT;
 
 void
 write_file(char *path);
+
+int
+handle_redirect(char *site);
 
 /*
  * Writes an error response to connfd depending on <errno>
@@ -118,6 +122,8 @@ parse_request(char *request)
 			}
 		}
 	}
+	free(tofree);
+	printf("%s\n", request);
 
 	char *res1 = strstr(request, "/");
 	char *res2 = strstr(request, " HTTP");
@@ -139,23 +145,40 @@ parse_request(char *request)
 	if (S_ISREG(st.st_mode)) { //normal file
 		printf("is normal file\n");
 		write_file(path);
-	} else { //file not found
-		printf("is not normal file\n");
-		//only handle GET requests for now
-		if (strncmp(req, "/go/", 4) == 0) {
-			char *site;
-			site = req + 4;
-			write(connfd, "HTTP/1.1 302 Found\r\n", 20);
-			write(connfd, "Location: http://www.", 21);
-			write(connfd, site, strlen(site));
-			write(connfd, ".com/\r\n\r\n", 9);
-		} else {
-			write_error(404, req);
-		}
+		return;
 	}
 
-	printf("%s\n", request);
-	free(tofree);
+	//file not found
+	printf("is not normal file\n");
+	//only handle GET requests for now
+	if (strncmp(req, "/go/", 4) == 0) {
+		char *site;
+		site = req + 4;
+		if (handle_redirect(site) != -1) //successfully redirected
+			return;
+	}
+
+	//if we've made it down here then just return error
+	write_error(404, req);
+
+}
+
+/*
+ * If <site> contains only alpha characters, set HTTP header to redirect
+ * to www.<site>.com. Returns: -1 if nonalpha and 0 otherwise
+ */
+int
+handle_redirect(char *site)
+{
+	for (int i = 0; i < (int)strlen(site); i++) {
+		if (!isalpha(site[i]))
+			return -1;
+	}
+	write(connfd, "HTTP/1.1 302 Found\r\n", 20);
+	write(connfd, "Location: http://www.", 21);
+	write(connfd, site, strlen(site));
+	write(connfd, ".com/\r\n\r\n", 9);
+	return 0;
 }
 
 
