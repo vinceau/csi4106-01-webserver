@@ -27,7 +27,6 @@
 
 int connfd; //file descriptor of connection socket
 
-char *PORT;
 char *ROOT;
 
 char *secret_key = "id=2016840200";
@@ -380,7 +379,7 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	PORT = argv[1]; //port we're listening on
+	char *port = argv[1]; //port we're listening on
 	ROOT = argv[2]; //root directory
 
 	int listener; //file descriptor of listening socket
@@ -392,9 +391,9 @@ main(int argc, char **argv)
 	int nbytes; //the number of received bytes
 
 	//set up the server on 
-	setup_server(&listener, PORT);
+	setup_server(&listener, port);
 
-	printf("SERVER: Listening on port %s for connections...\n", PORT);
+	printf("SERVER: Listening on port %s for connections...\n", port);
 
 	while(1) {
 		sin_size = sizeof(their_addr);
