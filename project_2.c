@@ -29,6 +29,8 @@ int connfd; //file descriptor of connection socket
 char *PORT;
 char *ROOT;
 
+char *secret_key = "id=2016840200";
+
 void
 write_file(char *path);
 
@@ -100,11 +102,6 @@ get_mime(char *path)
 void
 parse_request(char *request)
 {
-
-	//only handle GET requests for now
-	if (strncmp(request, "GET", 3) != 0)
-		return;
-
 	char *token, *string, *tofree;
 	tofree = string = strdup(request);
 
@@ -112,12 +109,22 @@ parse_request(char *request)
 	char path[MAX_PATH_LEN];
 	char *p = path;
 
+	int is_post = 0;
+	int has_key = 0;
+	
+	//only handle GET and POST requests for now
+	if (strncmp(request, "POST", 4) == 0)
+		is_post = 1;
+	else if (strncmp(request, "GET", 3) != 0)
+		return;
+	
 	memset(path, 0, sizeof(path));
 	memset(req, 0, sizeof(req));
 	strcpy(path, ROOT);
 	p += strlen(ROOT);
 
 	while ((token = strsep(&string, "\r\n")) != NULL) {
+		printf("<%s>\n", token);
 		if (strncmp(token, "User-Agent: ", 12) == 0) {
 			//we're looking at the user agent now
 			if (strstr(token, "Mobile") != NULL) {
@@ -125,6 +132,15 @@ parse_request(char *request)
 				strcpy(p, "/mobile");
 				p += 7;
 			}
+		}
+		else if (strncmp(token, "Cookie: ", 8) == 0) {
+			//check to see if it's the correct cookie
+			char *cookie = token + 8;
+			if (strstr(cookie, secret_key) != NULL) {
+				//the user has the secret key
+				has_key = 1;
+			}
+			printf("Cookie contents: <%s>", cookie);
 		}
 	}
 	free(tofree);
@@ -150,6 +166,28 @@ parse_request(char *request)
 	struct stat st;
 	stat(path, &st);
 
+	//handle secret
+	if (strncmp(req, "/secret", 7) == 0) {
+		if (is_post) {
+			write(connfd, "HTTP/1.1 200 OK\r\n", 17);
+			write(connfd, "Set-Cookie: ", 12);
+			write(connfd, secret_key, strlen(secret_key));
+			write(connfd, "; max-age=3600\r\n", 41);
+			return;
+		}
+		else if (!has_key) {
+			return write_error(403, req);
+		}
+	}
+
+	//force remove cookie
+	if (strncmp(req, "/remcookie", 10) == 0) {
+		write(connfd, "HTTP/1.1 200 OK\r\n", 17);
+		write(connfd, "Set-Cookie: id=; expires=Thu, 01 Jan 1970 00:00:00 GMT\r\n", 56);
+		return;
+	}
+
+
 	if (S_ISREG(st.st_mode)) { //normal file
 		printf("is normal file\n");
 		return write_file(path);
@@ -157,7 +195,7 @@ parse_request(char *request)
 
 	//file not found
 	printf("is not normal file\n");
-	//only handle GET requests for now
+	//handle go requests
 	if (strncmp(req, "/go/", 4) == 0) {
 		char *site;
 		site = req + 4;
