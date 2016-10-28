@@ -274,9 +274,9 @@ parse_request(char *request, struct request *r_ptr)
 	char *res1 = strstr(request, "/");
 	char *res2 = strstr(request, " HTTP");
 	int url_len = res2 - res1; //length of the requested page name
-	if (url_len > 0) {
+	if (url_len > 0)
 		strncpy(r_ptr->url, res1, url_len);
-	}
+
 	return 0;
 }
 
@@ -305,33 +305,29 @@ handle_request(char *request)
 		return write_response(405, "Method Not Allowed", "");
 
 	char *url = req.url;
-	int url_len = strlen(url);
 	//change root directory to mobile if on mobile
 	char *mob = (req.is_mobile) ? "/mobile" : "";
 	//if we're at a folder, add index.html
-	char *fol = (url[url_len-1] == '/') ? "index.html" : "";
+	char *fol = (url[strlen(url)-1] == '/') ? "index.html" : "";
 	sprintf(path, "%s%s%s%s", ROOT, mob, url, fol);
 	printf("file: %s\n", path);
 
 	//handle secret
 	if (strncmp(url, "/secret", 7) == 0) {
 		if (req.method == 1 && req.has_body) { //post request
-			if (strstr(req.body, PASSWORD) != NULL) {
+			if (strstr(req.body, PASSWORD) != NULL)
 				return set_cookie();
-			}
 		}
 		if (!req.has_cookie || strstr(req.cookie, SECRET) == NULL)
 			return write_error(403);
 	}
 
-	if (strncmp(url, "/remcookie", 10) == 0) {
+	if (strncmp(url, "/remcookie", 10) == 0)
 		return unset_cookie();
-	}
 
 	stat(path, &st);
-	if (S_ISREG(st.st_mode)) { //normal file
+	if (S_ISREG(st.st_mode)) //normal file
 		return write_file(path);
-	}
 
 	//file not found
 	//handle go requests
@@ -387,8 +383,7 @@ setup_server(int *listener, char *port)
 	hints.ai_flags = AI_PASSIVE; //fill in my IP for me
 
 	if ((status = getaddrinfo(NULL, port, &hints, &servinfo)) != 0) {
-		fprintf(stderr, "getaddrinfo error: %s\n",
-			gai_strerror(status));
+		fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
 		exit(1);
 	}
 
