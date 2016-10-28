@@ -245,8 +245,6 @@ handle_request(char *request)
 {
 	struct stat st;
 	char path[MAX_PATH_LEN];
-	char *url = req.url;
-	int url_len = strlen(url);
 
 	printf("%s\n", request);
 	parse_request(request, &req);
@@ -262,6 +260,8 @@ handle_request(char *request)
 	if (req.method == -1)
 		return write_response(405, "Method Not Allowed", "");
 
+	char *url = req.url;
+	int url_len = strlen(url);
 	//change root directory to mobile if on mobile
 	char *mob = (req.is_mobile) ? "/mobile" : "";
 	//if we're at a folder, add index.html
