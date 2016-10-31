@@ -47,7 +47,7 @@ void
 write_error(int errno);
 
 void
-write_file(char *path, int fsize);
+write_file(char *path, size_t fsize);
 
 void
 set_cookie();
@@ -167,7 +167,7 @@ write_error(int errno)
  * the file already exists. Check for existence before calling write_file()!
  */
 void
-write_file(char *path, int fsize)
+write_file(char *path, size_t fsize)
 {
 	FILE *file, *connfile;
 	unsigned char bytes_to_send[MAX_BUF];
@@ -176,13 +176,13 @@ write_file(char *path, int fsize)
 	file = fopen(path, "r");
 	connfile = fdopen(connfd, "w");
 
-	printf("file size is %d bytes\n", fsize);
+	printf("file size is %d bytes\n", (int)fsize);
 
 	fprintf(connfile,
 			"HTTP/1.1 200 OK\r\n"
 			"Content-Type: %s\r\n"
 			"Content-Length: %d\r\n"
-			"\r\n", get_mime(path), fsize);
+			"\r\n", get_mime(path), (int)fsize);
 	fflush(connfile);
 
 	while ((bytes_read = fread(bytes_to_send, 1, MAX_BUF, file)) > 0) {
@@ -328,7 +328,7 @@ handle_request(char *request)
 
 	stat(path, &st);
 	if (S_ISREG(st.st_mode)) //normal file
-		return write_file(path, (int)st.st_size);
+		return write_file(path, st.st_size);
 
 	//file not found
 	//handle go requests
