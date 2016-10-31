@@ -47,7 +47,7 @@ void
 write_error(int errno);
 
 void
-write_file(char *path);
+write_file(char *path, int fsize);
 
 void
 set_cookie();
@@ -162,23 +162,20 @@ write_error(int errno)
 }
 
 /*
- * Writes the file at <path> to the connfd socket.
+ * Writes the file of <fsize> bytes at <path> to the connfd socket.
  * Warning! This function does not check for file errors but assumes
  * the file already exists. Check for existence before calling write_file()!
  */
 void
-write_file(char *path)
+write_file(char *path, int fsize)
 {
 	FILE *file, *connfile;
 	unsigned char bytes_to_send[MAX_BUF];
 	size_t bytes_read;
-	struct stat st;
-	stat(path, &st);
 
 	file = fopen(path, "r");
 	connfile = fdopen(connfd, "w");
 
-	int fsize = (int) st.st_size;
 	printf("file size is %d bytes\n", fsize);
 
 	fprintf(connfile,
@@ -327,7 +324,7 @@ handle_request(char *request)
 
 	stat(path, &st);
 	if (S_ISREG(st.st_mode)) //normal file
-		return write_file(path);
+		return write_file(path, (int)st.st_size);
 
 	//file not found
 	//handle go requests
