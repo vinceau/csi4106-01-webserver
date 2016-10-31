@@ -311,10 +311,14 @@ handle_request(char *request)
 
 	//handle secret
 	if (strncmp(url, "/secret", 7) == 0) {
-		if (req.method == 1 && req.has_body) { //post request
-			if (strstr(req.body, PASSWORD) != NULL)
+		if (req.method == 1) {
+			//this is a POST request
+			if (req.has_body && strstr(req.body, PASSWORD) != NULL)
 				return set_cookie();
+			//the password was wrong so access is still forbidden
+			return write_error(403);
 		}
+		//we've got a GET request
 		if (!req.has_cookie || strstr(req.cookie, SECRET) == NULL)
 			return write_error(403);
 	}
