@@ -324,8 +324,10 @@ handle_request(char *request)
 			return write_error(403);
 	}
 
+	/*
 	if (strncmp(url, "/remcookie", 10) == 0)
 		return unset_cookie();
+	*/
 
 	stat(path, &st);
 	if (S_ISREG(st.st_mode)) //normal file
