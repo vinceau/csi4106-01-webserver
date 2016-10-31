@@ -285,9 +285,6 @@ parse_request(char *request, struct request *r_ptr)
 void
 handle_request(char *request)
 {
-	struct stat st;
-	char path[MAX_PATH_LEN];
-
 	printf("%s\n", request);
 	parse_request(request, &req);
 
@@ -303,13 +300,6 @@ handle_request(char *request)
 		return write_response(405, "Method Not Allowed", "");
 
 	char *url = req.url;
-	//change root directory to mobile if on mobile
-	char *mob = (req.is_mobile) ? "/mobile" : "";
-	//if we're at a folder, add index.html
-	char *fol = (url[strlen(url)-1] == '/') ? "index.html" : "";
-	sprintf(path, "%s%s%s%s", ROOT, mob, url, fol);
-	printf("file: %s\n", path);
-
 	//handle secret
 	if (strncmp(url, "/secret", 7) == 0) {
 		if (req.method == 1) {
@@ -329,12 +319,23 @@ handle_request(char *request)
 		return unset_cookie();
 	*/
 
+	char path[MAX_PATH_LEN];
+	//change root directory to mobile if on mobile
+	char *mob = (req.is_mobile) ? "/mobile" : "";
+	//if we're at a folder, add index.html
+	char *fol = (url[strlen(url)-1] == '/') ? "index.html" : "";
+	sprintf(path, "%s%s%s%s", ROOT, mob, url, fol);
+	printf("file: %s\n", path);
+
+	//let's see if we've got an actual file
+	struct stat st;
 	stat(path, &st);
-	if (S_ISREG(st.st_mode)) //normal file
+	if (S_ISREG(st.st_mode))
+		//we've a normal file, so write it out to the socket
 		return write_file(path, st.st_size);
 
 	//file not found
-	//handle go requests
+	//test for go requests
 	if (strncmp(url, "/go/", 4) == 0) {
 		char *site = url + 4;
 		if (strlen(site) > 0 && is_alphastring(site))
@@ -457,7 +458,7 @@ main(int argc, char **argv)
 	char buf[MAX_BUF]; //buffer for messages
 	int nbytes; //the number of received bytes
 
-	//set up the server on 
+	//set up the server on the specified port
 	setup_server(&listener, port);
 
 	printf("SERVER: Listening on port %s for connections...\n", port);
