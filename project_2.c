@@ -85,20 +85,21 @@ get_mime(char *path)
 {
 	//grab the file extension
 	char *fext = strrchr(path, '.');
-	if (fext != NULL)
+	if (fext != NULL) {
 		fext += 1; //ignore the '.'
 
-	//supported file types
-	if (strcmp(fext, "html") == 0)
-		return "text/html";
-	if (strcmp(fext, "css") == 0)
-		return "text/css";
-	if (strcmp(fext, "js") == 0)
-		return "text/javascript";
-	if (strcmp(fext, "jpg") == 0)
-		return "image/jpeg";
-	if (strcmp(fext, "png") == 0)
-		return "image/png";
+		//supported file types
+		if (strcmp(fext, "html") == 0)
+			return "text/html";
+		if (strcmp(fext, "css") == 0)
+			return "text/css";
+		if (strcmp(fext, "js") == 0)
+			return "text/javascript";
+		if (strcmp(fext, "jpg") == 0)
+			return "image/jpeg";
+		if (strcmp(fext, "png") == 0)
+			return "image/png";
+	}
 
 	//arbitrary data
 	return "application/octet-stream";
