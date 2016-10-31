@@ -333,7 +333,7 @@ handle_request(char *request)
 	//handle go requests
 	if (strncmp(url, "/go/", 4) == 0) {
 		char *site = url + 4;
-		if (is_alphastring(site))
+		if (strlen(site) > 0 && is_alphastring(site))
 			return handle_redirect(site);
 	}
 
