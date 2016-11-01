@@ -25,13 +25,13 @@
 #define COOKIE_EXP 3600 //cookie expiry time in seconds
 
 struct request {
-	int method; //0 for GET, 1 for POST
-	int is_mobile; //0 for no, 1 for yes
-	int has_cookie;
-	int has_body;
+	char method[7];
 	char url[2048];
-	char body[2048];
 	char cookie[256];
+	char body[2048];
+	int has_cookie; //0 for no, 1 for yes
+	int has_body;
+	int is_mobile;
 };
 
 char *
@@ -226,13 +226,7 @@ parse_request(char *request, struct request *r_ptr)
 	char *token, *string, *tofree;
 	tofree = string = strdup(request);
 
-	//only handle GET and POST requests for now
-	if (strncmp(request, "POST", 4) == 0)
-		r_ptr->method = 1;
-	else if (strncmp(request, "GET", 3) == 0)
-		r_ptr->method = 0;
-	else
-		r_ptr->method = -1;
+	sscanf(request, "%s %s HTTP", r_ptr->method, r_ptr->url);
 
 	//set false as default
 	r_ptr->is_mobile = 0;
@@ -269,12 +263,6 @@ parse_request(char *request, struct request *r_ptr)
 	}
 	free(tofree);
 
-	char *res1 = strstr(request, "/");
-	char *res2 = strstr(request, " HTTP");
-	int url_len = res2 - res1; //length of the requested page name
-	if (url_len > 0)
-		strncpy(r_ptr->url, res1, url_len);
-
 	return 0;
 }
 
@@ -288,7 +276,7 @@ handle_request(char *request)
 	printf("%s\n", request);
 	parse_request(request, &req);
 
-	printf("method: %d\n", req.method);
+	printf("method: %s\n", req.method);
 	printf("is_mobile: %d\n", req.is_mobile);
 	printf("has_cookie: %d\n", req.has_cookie);
 	printf("has_body: %d\n", req.has_body);
@@ -296,13 +284,14 @@ handle_request(char *request)
 	printf("body: %s\n", req.body);
 	printf("cookie: %s\n", req.cookie);
 
-	if (req.method == -1)
+	//only handle GET and POST requests for now
+	if (strcmp(req.method, "GET") != 0 && strcmp(req.method, "POST") != 0)
 		return write_response(405, "Method Not Allowed", "");
 
 	char *url = req.url;
 	//handle secret
 	if (strncmp(url, "/secret", 7) == 0) {
-		if (req.method == 1) {
+		if (strcmp(req.method, "POST")) {
 			//this is a POST request
 			if (req.has_body && strstr(req.body, PASSWORD) != NULL)
 				return set_cookie();
