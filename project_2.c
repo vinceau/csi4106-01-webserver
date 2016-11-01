@@ -177,13 +177,13 @@ write_file(char *path, size_t fsize)
 	file = fopen(path, "r");
 	connfile = fdopen(connfd, "w");
 
-	printf("file size is %d bytes\n", (int)fsize);
+	printf("file size is %ld bytes\n", fsize);
 
 	fprintf(connfile,
 			"HTTP/1.1 200 OK\r\n"
 			"Content-Type: %s\r\n"
-			"Content-Length: %d\r\n"
-			"\r\n", get_mime(path), (int)fsize);
+			"Content-Length: %ld\r\n"
+			"\r\n", get_mime(path), fsize);
 	fflush(connfile);
 
 	while ((bytes_read = fread(bytes_to_send, 1, MAX_BUF, file)) > 0) {
