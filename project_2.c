@@ -286,21 +286,29 @@ handle_request(char *request)
 	printf("body: %s\n", req.body);
 	printf("cookie: %s\n", req.cookie);
 
-	//only handle GET and POST requests for now
-	if (strcmp(req.method, "GET") != 0 && strcmp(req.method, "POST") != 0)
-		return write_response(405, "Method Not Allowed", "");
-
 	char *url = req.url;
-	//handle secret
-	if (strncmp(url, "/secret", 7) == 0) {
-		if (strcmp(req.method, "POST")) {
+
+	//the only POST request supported is at /login
+	if (strcmp(req.method, "POST") == 0) {
+		//handle the login component
+		if (strncmp(url, "/login", 6) == 0) {
 			//this is a POST request
 			if (req.has_body && strstr(req.body, PASSWORD) != NULL)
 				return set_cookie_and_redirect();
 			//the password was wrong so access is still forbidden
 			return write_error(403);
 		}
-		//we've got a GET request
+		//for all other POST requests return 405 error
+		return write_response(405, "Method Not Allowed", "");
+	}
+
+	//filter out all other request methods
+	if (strcmp(req.method, "GET") != 0)
+		return write_response(405, "Method Not Allowed", "");
+
+	//everything else from here on out should be a GET request
+	//handle secret
+	if (strncmp(url, "/secret", 7) == 0) {
 		if (!req.has_cookie || strstr(req.cookie, SECRET) == NULL)
 			return write_error(403);
 	}
