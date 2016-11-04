@@ -72,7 +72,7 @@ setup_server(int *listener, char *port);
 
 int connfd; //file descriptor of connection socket
 char *ROOT; //root directory for all files
-char *SECRET = "id=2016840200"; //secret key for /secret
+char *SECRET = "2016840200"; //secret key for /secret
 char *PASSWORD = "id=yonsei&pw=network"; //password needed in POST
 struct request req; //information about the last request
 
@@ -195,13 +195,15 @@ write_file(char *path, size_t fsize)
 }
 
 /*
- * Sets a cookie that expires in COOKIE_EXP seconds.
+ * Sets a cookie that expires in COOKIE_EXP seconds and redirect to
+ * the secret page.
  */
 void
-set_cookie()
+set_cookie_and_redirect()
 {
-	write_response(200, "OK",
-			"Set-Cookie: %s; path=/; max-age=%d\r\n", SECRET, COOKIE_EXP);
+	write_response(302, "Found",
+			"Location: /secret/index.html\r\n"
+			"Set-Cookie: cookie=%s; path=/; max-age=%d\r\n", SECRET, COOKIE_EXP);
 }
 
 /*
@@ -211,7 +213,7 @@ void
 unset_cookie()
 {
 	write_response(200, "OK",
-			"Set-Cookie: id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT\r\n");
+			"Set-Cookie: cookie=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT\r\n");
 }
 
 /*
@@ -294,7 +296,7 @@ handle_request(char *request)
 		if (strcmp(req.method, "POST")) {
 			//this is a POST request
 			if (req.has_body && strstr(req.body, PASSWORD) != NULL)
-				return set_cookie();
+				return set_cookie_and_redirect();
 			//the password was wrong so access is still forbidden
 			return write_error(403);
 		}
