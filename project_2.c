@@ -331,9 +331,14 @@ handle_request(char *request)
 	char newrl[2048]; //new url should we need to redirect
 	struct stat st;
 	stat(path, &st);
-	if (S_ISREG(st.st_mode))
+	if (S_ISREG(st.st_mode)) {
 		//we've a normal file, so write it out to the socket
 		return write_file(path, st.st_size);
+	} else if (S_ISDIR(st.st_mode)) {
+		//we've a directory so append a '/' character and try again
+		sprintf(newrl, "%s/", url);
+		return handle_redirect(newrl);
+	}
 
 	//file not found
 	//test for go requests
