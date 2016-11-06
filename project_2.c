@@ -328,6 +328,7 @@ handle_request(char *request)
 	printf("file: %s\n", path);
 
 	//let's see if we've got an actual file
+	char newrl[2048]; //new url should we need to redirect
 	struct stat st;
 	stat(path, &st);
 	if (S_ISREG(st.st_mode))
@@ -338,8 +339,10 @@ handle_request(char *request)
 	//test for go requests
 	if (strncmp(url, "/go/", 4) == 0) {
 		char *site = url + 4;
-		if (strlen(site) > 0 && is_alphastring(site))
-			return handle_redirect(site);
+		if (strlen(site) > 0 && is_alphastring(site)) {
+			sprintf(newrl, "http://www.%s.com/", site);
+			return handle_redirect(newrl);
+		}
 	}
 
 	//if we've made it down here then just return error
@@ -347,13 +350,14 @@ handle_request(char *request)
 }
 
 /*
- * Sets HTTP header to redirect to www.<site>.com.
+ * Sets HTTP header to redirect to <site>
  */
 void
 handle_redirect(char *site)
 {
+	printf("Redirecting to: %s\n", site);
 	write_response(302, "Found",
-			"Location: http://www.%s.com/\r\n", site);
+			"Location: %s\r\n", site);
 }
 
 /*
