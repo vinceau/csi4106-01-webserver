@@ -22,7 +22,7 @@
 #define BACKLOG 10 //how many pending connections the queue will hold
 #define MAX_BUF 1024 //the max size of messages
 #define MAX_PATH_LEN 4096 //max size of the file path
-#define COOKIE_EXP 3600 //cookie expiry time in seconds
+#define COOKIE_EXP 604800 //cookie expiry time in seconds
 
 struct request {
 	char method[7];
