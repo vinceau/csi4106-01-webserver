@@ -293,7 +293,7 @@ handle_request(char *request)
 	//the only POST request supported is at /login
 	if (strcmp(req.method, "POST") == 0) {
 		//handle the login component
-		if (strncmp(url, "/login", 6) == 0) {
+		if (strcmp(url, "/login") == 0) {
 			//we have the correct password
 			if (req.has_body && strstr(req.body, PASSWORD) != NULL)
 				return set_cookie_and_redirect(SECRET, "/secret/index.html");
@@ -316,7 +316,7 @@ handle_request(char *request)
 	}
 
 	/*
-	if (strncmp(url, "/remcookie", 10) == 0)
+	if (strcmp(url, "/remcookie") == 0)
 		return unset_cookie();
 	*/
 
