@@ -50,7 +50,7 @@ void
 write_file(char *path, size_t fsize);
 
 void
-set_cookie();
+set_cookie_and_redirect(char *cookie, char *site);
 
 void
 unset_cookie();
@@ -199,11 +199,12 @@ write_file(char *path, size_t fsize)
  * the secret page.
  */
 void
-set_cookie_and_redirect()
+set_cookie_and_redirect(char *cookie, char *site)
 {
 	write_response(302, "Found",
-			"Location: /secret/index.html\r\n"
-			"Set-Cookie: cookie=%s; path=/; max-age=%d\r\n", SECRET, COOKIE_EXP);
+			"Location: %s\r\n"
+			"Set-Cookie: cookie=%s; path=/; max-age=%d\r\n",
+			site, cookie, COOKIE_EXP);
 }
 
 /*
@@ -295,7 +296,7 @@ handle_request(char *request)
 		if (strncmp(url, "/login", 6) == 0) {
 			//we have the correct password
 			if (req.has_body && strstr(req.body, PASSWORD) != NULL)
-				return set_cookie_and_redirect();
+				return set_cookie_and_redirect(SECRET, "/secret/index.html");
 			//the password was wrong so access is still forbidden
 			return write_error(403);
 		}
