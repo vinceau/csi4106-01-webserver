@@ -228,7 +228,8 @@ parse_request(char *request, struct request *r_ptr)
 	char *token, *string, *tofree;
 	tofree = string = strdup(request);
 
-	sscanf(request, "%s %s HTTP", r_ptr->method, r_ptr->url);
+	//scan the method and url into the pointer
+	sscanf(request, "%s %s ", r_ptr->method, r_ptr->url);
 
 	//set false as default
 	r_ptr->is_mobile = 0;
@@ -279,12 +280,12 @@ handle_request(char *request)
 	parse_request(request, &req);
 
 	printf("method: %s\n", req.method);
-	printf("is_mobile: %d\n", req.is_mobile);
+	printf("url: %s\n", req.url);
+	printf("cookie: %s\n", req.cookie);
+	printf("body: %s\n", req.body);
 	printf("has_cookie: %d\n", req.has_cookie);
 	printf("has_body: %d\n", req.has_body);
-	printf("url: %s\n", req.url);
-	printf("body: %s\n", req.body);
-	printf("cookie: %s\n", req.cookie);
+	printf("is_mobile: %d\n", req.is_mobile);
 
 	char *url = req.url;
 
@@ -292,7 +293,7 @@ handle_request(char *request)
 	if (strcmp(req.method, "POST") == 0) {
 		//handle the login component
 		if (strncmp(url, "/login", 6) == 0) {
-			//this is a POST request
+			//we have the correct password
 			if (req.has_body && strstr(req.body, PASSWORD) != NULL)
 				return set_cookie_and_redirect();
 			//the password was wrong so access is still forbidden
@@ -473,8 +474,7 @@ main(int argc, char **argv)
 		}
 
 		inet_ntop(their_addr.ss_family,
-				get_in_addr((struct sockaddr *)&their_addr),
-				s, sizeof s);
+				get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
 
 		printf("SERVER: received connection from %s\n", s);
 
@@ -482,7 +482,7 @@ main(int argc, char **argv)
 			close(listener); //child doesn't need the listener
 
 			if ((nbytes = recv(connfd, buf, MAX_BUF, 0)) > 0) {
-				//we received something a request!
+				//we received a request!
 				handle_request(buf);
 			}
 
