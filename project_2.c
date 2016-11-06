@@ -309,7 +309,7 @@ handle_request(char *request)
 
 	//everything else from here on out should be a GET request
 	//handle secret
-	if (strncmp(url, "/secret", 7) == 0) {
+	if (strncmp(url, "/secret/", 8) == 0) {
 		if (!req.has_cookie || strstr(req.cookie, SECRET) == NULL)
 			return write_error(403);
 	}
