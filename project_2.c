@@ -362,8 +362,7 @@ void
 handle_redirect(char *site)
 {
 	printf("Redirecting to: %s\n", site);
-	write_response(302, "Found",
-			"Location: %s\r\n", site);
+	write_response(302, "Found", "Location: %s\r\n", site);
 }
 
 /*
@@ -414,6 +413,7 @@ setup_server(int *listener, char *port)
 			continue; 
 		}
 
+		//allow port reuse
 		if (setsockopt(*listener, SOL_SOCKET, SO_REUSEADDR, &yes,
 					sizeof(yes)) == -1) {
 			perror("ERROR: setsockopt() failed");
