@@ -7,7 +7,7 @@ header-includes:
     - \usepackage{fullpage}
 ---
 
-#Introduction
+# Introduction
 
 This program serves a website with the root directory specified by the command line. You can compile it using the `make` command or alternatively:
 
@@ -23,7 +23,7 @@ To run the program, execute:
 
 This will serve the files found in the `website/` directory (defaulting to `index.html`) to the address: [*127.0.0.1:8080*](http://127.0.0.1:8080).
 
-#Implementation Scope
+# Implementation Scope
 The program currently only has GET and POST methods implemented. There are 5 MIME types that are currently supported: `text/html`, `text/css`, `text/javascript`, `image/jpeg`, and `image/png`. If an unsupported file type is requested, it will use the MIME type `application/octet-stream` to specify arbitrary data.
 
 The POST method is also implemented but only to detect whether or not `id=yonsei&pw=network` is sent in the entity body to the URL `/login`. If it is, a cookie containing `cookie=2016840200` is sent to the client and redirects to `/secret/index.html`. Only clients that have this cookie will be able to access the files in the `/secret/` folder. If a client attempts to access the contents in `/secret/` without this cookie, a `403 Forbidden` status is returned.
@@ -34,7 +34,7 @@ The program also supports redirection via the `302 Found` status. If the page `/
 
 Different files are also served based on the client's User-Agent string. If the User-Agent is a mobile device, the webserver will serve not from the `website/` directory, but from the `website/mobile/` directory (see Figures 1 and 2).
 
-#Code Commentary
+# Code Commentary
 
 The program first ensures that a sufficient number of arguments is passed in. If not, the program drops out printing the usage information. Otherwise, the program passes the port that was specified in the command line to `setup_server()`.
 
@@ -57,24 +57,24 @@ If `handle_request()` detects that the file at the requested path is not a regul
 Finally, back in the `main()` function, any remaining connections are closed and as it is the child process, it terminates itself using `exit()`.
 
 
-#How It Works
+# How It Works
 The code can be broken into 3 main parts - 1) network setup; 2) request parsing; and 3) request handling.
 
-##Network Setup
+## Network Setup
 The network setup component was based on [*Beej's Guide to Network Programming: Using Internet Sockets*](http://www.beej.us/guide/bgnet/output/html/singlepage/bgnet.html) by Brian "Beej Jorgensen" Hall. The socket is setup in a way to accept both IPv4 and IPv6. This is mainly done via the `get_in_addr()` function which can successfully translate the IP addresses into the correct form. Once the socket is setup and listening, if a connection is detected, the process forks a child process which then handles the parsing and handling of the request, while the parent process continues to listen for new connections.
 
-##Request Parsing
+## Request Parsing
 The heavy lifting of understanding the request is done by the `parse_request()` function. It first uses `sscanf()` to get the request method and URL. It then loops through the request line by line in order to extract information such as whether or not the client is a mobile device, if the request contains a cookie and what it is if it does, as well as any request body if there are any. This is all stored in a custom `struct request`.
 
-##Request Handling
+## Request Handling
 The request handling is done by `handle_request()` and it first handles POST requests. Since we are only handling POST requests at the URL `/login`, we check the URL and handle that first. To deal with GET requests, we first ensure that we have a secret cookie if we happen to be dealing dealing with `/secret/` requests. Then we check the URL that is being requested and get the actual file path by joining the URL with the root directory. If the path turns out to be a file, we write it to the socket. If the path is a directory, we redirect to the same URL appended with `/` to indicate a directory.
 
 If the requested file or folder cannot be found, we check the URL for `/go/` redirects. If the redirect website is valid (contains only alphabetical characters) we redirect to the requested website.
 
-##Other Remarks
+## Other Remarks
 The cookie setting and error responses are written to the socket using the `write_response()` function. This opens the socket as a file, and writes a status number, status code, and any formatted string to the socket. This provides a lot more flexibility than the typical `send()` or `write()` functions used for socket communication which also require the number of bytes to be written.
 
-#Screenshots
+# Screenshots
 
 The following are some screenshots of the webserver in action.
 
@@ -86,35 +86,17 @@ The following are some screenshots of the webserver in action.
 
 ![The contents in the `/secret/` folder are correctly displayed when the cookie is detected](screenshots/fig4.png)
 
-#Things I Learnt
+# Things I Learnt
 After discovering how tedious it was having to always specify the number of bytes that I am sending when writing to the socket using `write()` and `send()`, I endeavoured to find a way to simplify writing to the socket. This was when I learnt that it was actually possible to open up a socket like a file and read and write to it as you would any other file in C. As a result, I wrote the `write_response()` function that would allow me to pass in a formatted string (just like `printf()`) and it made writing to the socket much, much easier.
 
 I also learnt that the Content-Length field in the HTTP header is actually quite particular and can lead to several errors. For example if the Content-Length field differs from the actual number of sent bytes by even one byte, errors can occur. Some browsers appear to be more forgiving than others but it still shows how important it is to not only correctly identify the size of the file, but also correctly send that number of bytes to the client.
 
 When implementing the additional component involving cookies I discovered that cookies can exist at a certain scope of the website, determined by the URL of which the cookie was set. For example, when I was attempting to unset the cookie required by `/secret/`, no matter what I did I could still access the contents in `/secret/` which should have been protected by the cookie. It turns out that the cookie that I had set had the path unique to `/secret/` but when I was unsetting the cookie, the cookie I was unsetting was located at `/`. This meant that although the cookie at `/` was successfully being cleared, the cookie at `/secret/` was not. I managed to solve this by explicitly declaring the path (which I set to `/`) when both setting and unsetting the cookie.
 
-#Further Research
+# Further Research
 In its current state, this webserver is hardly perfect and still has lots of missing features. For example, out of the 9 HTTP methods that exist in HTTP 1.1, only 2 methods have been implemented (GET and POST). Further more, although the POST method is implemented, the example website provided does not even include a form for the credentials. This means that testing of the cookie and `/secret/` directory needs to be done using a tool such as the [*Postman Chrome extension*](https://chrome.google.com/webstore/detail/postman/fhbjgbiflinjbdggehcddcbncdddomop).
 
 In addition to all of this, the program currently has no caching mechanisms in place, no more than two headers (Content-Type and Content-Length) implemented, no persistent connections (a crucial feature that makes HTTP 1.1 significantly more efficient over HTTP 1.0), and barely any status codes implemented.
 
 As a result, further research and implementation would be needed to make this webserver more usable in the future. However, in its current state it is sufficient to demonstrate socket programming in C as well as illustrate HTTP requests and responses.
 
-<!--
-#Disclaimer
-
-The ethernet structures and declarations used in this program were inspired and adapted from the [*Programming with pcap*](http://www.tcpdump.org/pcap.html)[^1] tutorial by Tim Carstens of the Tcpdump Group.
-
-
-
-[^1]: <http://www.tcpdump.org/pcap.html>
-
-
-Used websites:
-get last occurence of character
-http://www.ibm.com/support/knowledgecenter/ssw_ibm_i_72/rtref/strrchr.htm
-
-printf function guide
-http://www.ozzu.com/cpp-tutorials/tutorial-writing-custom-printf-wrapper-function-t89166.html
-
--->
